@@ -40,20 +40,20 @@ export const SURFACES: Record<SurfaceId, SurfaceColors> = {
   dark: {
     accent: '#ffffff',
     background: '#050508',
-    countryColor: '#e0e0e0',
+    countryColor: '#c0c0c0',
     globeFillColor: '#0a0a0f',
   },
   green: {
     accent: '#00ff88',
     background: '#050508',
-    countryColor: '#e0e0e0',
+    countryColor: '#c0c0c0',
     globeFillColor: '#0a0a0f',
   },
   white: {
-    accent: '#0a0a0f',
+    accent: '#1a1a1a',
     background: '#ffffff',
-    countryColor: '#e0e0e0',
-    globeFillColor: '#0a0a0f',
+    countryColor: '#a0a0a0',
+    globeFillColor: '#f0f0f0',
   },
 };
 
