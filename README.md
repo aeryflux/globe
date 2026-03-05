@@ -2,6 +2,8 @@
 
 Portable 3D globe component for React and React Native (Expo).
 
+![Globe Preview](.github/preview.png)
+
 **[Live Demo](https://aeryflux.github.io/globe-demo/)**
 
 ## Features
