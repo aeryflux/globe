@@ -5,7 +5,7 @@
  * Includes automatic fallback when WebGL is unavailable.
  */
 
-import { useRef, useEffect, useState, CSSProperties } from 'react';
+import { useRef, useEffect, useState, useMemo, CSSProperties } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
@@ -66,13 +66,22 @@ export function Globe({
     highlights: Map<string, DataHighlightState>;
   } | null>(null);
 
-  const colors = getSurfaceColors(config);
+  // Memoize colors to prevent unnecessary effect triggers
+  const colors = useMemo(() => getSurfaceColors(config), [
+    config.surface,
+    config.borderColor,
+    config.countryColor,
+    config.globeFillColor,
+  ]);
+
   const {
     rotationSpeed = 0.0003,
     bloomStrength = 1.0,
     glowIntensity = 1.2,
     isLightTheme = false,
     forceTransparent = false,
+    showCountries = false,
+    showCities = false,
   } = config;
 
   // Refs for animation loop (avoids recreating scene on prop changes)
@@ -80,6 +89,24 @@ export function Globe({
   const glowIntensityRef = useRef(glowIntensity);
   rotationSpeedRef.current = rotationSpeed;
   glowIntensityRef.current = glowIntensity;
+
+  // Create stable key for countryData to detect actual changes
+  const countryDataKey = useMemo(() => {
+    if (!countryData) return '';
+    return Object.entries(countryData)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${k}:${v.scale}:${v.color || ''}`)
+      .join('|');
+  }, [countryData]);
+
+  // Track previous data key to detect real changes
+  const prevDataKeyRef = useRef<string>('');
+
+  // Refs for values used in effects to avoid dependency issues
+  const countryDataRef = useRef(countryData);
+  const configRef = useRef(config);
+  countryDataRef.current = countryData;
+  configRef.current = config;
 
   // Check WebGL support on mount
   useEffect(() => {
@@ -251,19 +278,32 @@ export function Globe({
   // eslint-disable-next-line react-hooks/exhaustive-deps -- Scene setup only on mount/modelUrl change
   }, [webglError, modelUrl]);
 
-  // Build highlights when countryData changes
+  // Build highlights when countryData actually changes (using stable key comparison)
   useEffect(() => {
     if (!sceneRef.current?.index) return;
 
+    // Skip if data hasn't actually changed
+    const isNewData = countryDataKey !== prevDataKeyRef.current;
+    if (!isNewData && sceneRef.current.highlights.size > 0) {
+      return;
+    }
+    prevDataKeyRef.current = countryDataKey;
+
     const { index, time } = sceneRef.current;
+    const currentCountryData = countryDataRef.current;
+    const currentConfig = configRef.current;
 
     // Reset all positions first (smooth transition)
     resetAllCountries(index);
     sceneRef.current.highlights.clear();
 
     // If no data, just reset and apply base materials
-    if (!countryData || Object.keys(countryData).length === 0) {
-      applyGlobeMaterials(sceneRef.current.model!, index, colors, config);
+    if (!currentCountryData || Object.keys(currentCountryData).length === 0) {
+      applyGlobeMaterials(sceneRef.current.model!, index, colors, {
+        ...currentConfig,
+        showCountries,
+        showCities,
+      });
       return;
     }
 
@@ -272,7 +312,7 @@ export function Globe({
 
     // Build country name lookup (lowercase, normalized)
     const countryDataMap = new Map<string, { scale: number; color?: string }>();
-    for (const [name, data] of Object.entries(countryData)) {
+    for (const [name, data] of Object.entries(currentCountryData)) {
       countryDataMap.set(name.toLowerCase().replace(/\s+/g, '_'), data);
       countryDataMap.set(name.toLowerCase().replace(/\s+/g, ''), data);
       countryDataMap.set(name.toLowerCase(), data);
@@ -310,8 +350,15 @@ export function Globe({
     sceneRef.current.highlights = newHighlights;
 
     // Apply materials (positions handled by animateDataHighlights)
-    applyGlobeMaterials(sceneRef.current.model!, index, colors, { ...config, countryData, dataHighlightColor: highlightColor });
-  }, [countryData, dataHighlightColor, colors, config]);
+    applyGlobeMaterials(sceneRef.current.model!, index, colors, {
+      ...currentConfig,
+      showCountries,
+      showCities,
+      countryData: currentCountryData,
+      dataHighlightColor: highlightColor,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- countryDataKey is the stable dependency
+  }, [countryDataKey, dataHighlightColor, colors, showCountries, showCities]);
 
   // Show fallback if WebGL not supported
   if (webglError) {

@@ -115,6 +115,14 @@ export function buildGlobeIndex(model: THREE.Object3D): GlobeIndex {
         const countryName = parts.slice(0, -1).join('_');
         if (countryName) index.cityToCountry.set(mesh, countryName);
       }
+      // Store original state for city animation
+      const center = getMeshCenter(mesh);
+      const radialDir = center.clone().normalize();
+      index.originalStates.set(mesh, {
+        position: mesh.position.clone(),
+        scale: mesh.scale.clone(),
+        radialDirection: radialDir,
+      });
     }
   });
 
@@ -230,22 +238,68 @@ export function applyGlobeMaterials(
     }
   }
 
+  // Build city data lookup if provided
+  const { cityData } = config;
+  const cityDataMap = new Map<string, { scale: number; color?: string }>();
+  if (cityData) {
+    for (const [name, data] of Object.entries(cityData)) {
+      cityDataMap.set(name.toLowerCase().replace(/\s+/g, '_'), data);
+      cityDataMap.set(name.toLowerCase().replace(/\s+/g, ''), data);
+      cityDataMap.set(name.toLowerCase(), data);
+    }
+  }
+  const hasCityData = cityDataMap.size > 0;
+
   // Configure cities
   for (const mesh of index.allCityMeshes) {
     mesh.visible = showCities;
     if (showCities) {
-      mesh.material = new THREE.MeshStandardMaterial({
-        color: colors.countryColor,
-        emissive: new THREE.Color(colors.countryColor).multiplyScalar(0.1),
-        emissiveIntensity: 0.15,
-        metalness: 0.1,
-        roughness: 0.6,
-        side: THREE.DoubleSide,
-      });
+      // Extract city name from mesh
+      const meshName = mesh.name.toLowerCase();
+      const cityPart = meshName.replace('city_', '');
+      const parts = cityPart.split('_');
+      // City name is usually the last part after country code
+      const cityName = parts[parts.length - 1] || cityPart;
+
+      // Check if city has data highlight
+      const matchedData = cityDataMap.get(cityName) || cityDataMap.get(cityPart);
+
+      if (hasCityData && matchedData) {
+        // Highlighted city
+        const color = new THREE.Color(matchedData.color || highlightColor);
+        mesh.material = new THREE.MeshStandardMaterial({
+          color: color,
+          emissive: color,
+          emissiveIntensity: 0.4 + matchedData.scale * 0.4,
+          metalness: 0.3,
+          roughness: 0.4,
+          side: THREE.DoubleSide,
+        });
+      } else if (hasCityData) {
+        // Dimmed city (when data is active)
+        mesh.material = new THREE.MeshStandardMaterial({
+          color: new THREE.Color(colors.countryColor).multiplyScalar(0.3),
+          emissive: new THREE.Color(colors.countryColor).multiplyScalar(0.03),
+          emissiveIntensity: 0.1,
+          metalness: 0.1,
+          roughness: 0.7,
+          side: THREE.DoubleSide,
+        });
+      } else {
+        // Normal city (no data)
+        mesh.material = new THREE.MeshStandardMaterial({
+          color: colors.countryColor,
+          emissive: new THREE.Color(colors.countryColor).multiplyScalar(0.1),
+          emissiveIntensity: 0.15,
+          metalness: 0.1,
+          roughness: 0.6,
+          side: THREE.DoubleSide,
+        });
+      }
     }
   }
 
-  // Hide city borders
+  // Hide city borders (for now)
   for (const mesh of index.allCityBorderMeshes) {
     mesh.visible = false;
   }
@@ -349,6 +403,14 @@ export interface DataHighlightState {
   startTime: number;
 }
 
+/** City highlight state for animation */
+export interface CityHighlightState {
+  mesh: THREE.Mesh;
+  intensity: number;
+  color: string;
+  startTime: number;
+}
+
 /**
  * Animate data-driven country highlights with radial displacement
  * Call this in your render loop for smooth animations
@@ -414,6 +476,52 @@ export function animateDataHighlights(
 }
 
 /**
+ * Animate city highlights with subtle pulse effect
+ * Call this in your render loop for smooth animations
+ */
+export function animateCityHighlights(
+  index: GlobeIndex,
+  highlights: Map<string, CityHighlightState>,
+  time: number,
+  glowIntensity: number = 0.5
+): void {
+  for (const [, data] of highlights) {
+    const mat = data.mesh.material as THREE.MeshStandardMaterial;
+    if (!mat.isMeshStandardMaterial) continue;
+
+    const originalState = index.originalStates.get(data.mesh);
+    if (!originalState) continue;
+
+    // Time since this highlight started
+    const timeSinceStart = time - data.startTime;
+
+    // Entry animation (0-0.3s): ease in
+    const entryDelay = (1 - data.intensity) * 0.2;
+    const entryProgress = Math.min(1, Math.max(0, (timeSinceStart - entryDelay) / 0.3));
+    const entryEase = 1 - Math.pow(1 - entryProgress, 3); // ease-out cubic
+
+    // Breathing pulse (continuous, faster than countries)
+    const breathingSpeed = 2.0 + data.intensity * 0.8;
+    const breathingPulse = 0.8 + 0.2 * Math.sin(time * breathingSpeed);
+
+    // Scale animation - cities grow slightly
+    const baseScale = 1 + data.intensity * 0.3;
+    const animatedScale = 1 + (baseScale - 1) * entryEase * breathingPulse;
+    data.mesh.scale.copy(originalState.scale).multiplyScalar(animatedScale);
+
+    // Radial displacement - cities pop out slightly
+    const baseDisplacement = data.intensity * 0.03;
+    const animatedDisplacement = baseDisplacement * entryEase * breathingPulse;
+    data.mesh.position.copy(originalState.position)
+      .addScaledVector(originalState.radialDirection, animatedDisplacement);
+
+    // Emissive intensity pulse
+    const baseEmissive = 0.4 + data.intensity * 0.5;
+    mat.emissiveIntensity = baseEmissive * breathingPulse * (0.5 + entryProgress * 0.5);
+  }
+}
+
+/**
  * Reset mesh to original state (for clearing highlights)
  */
 export function resetMeshState(mesh: THREE.Mesh, index: GlobeIndex): void {
@@ -432,6 +540,15 @@ export function resetAllCountries(index: GlobeIndex): void {
     resetMeshState(mesh, index);
   }
   for (const mesh of index.allBorderMeshes) {
+    resetMeshState(mesh, index);
+  }
+}
+
+/**
+ * Reset all city meshes to original state
+ */
+export function resetAllCities(index: GlobeIndex): void {
+  for (const mesh of index.allCityMeshes) {
     resetMeshState(mesh, index);
   }
 }

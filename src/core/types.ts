@@ -23,6 +23,19 @@ export interface CountryHighlight {
 /** Map of country names to highlight data */
 export type CountryDataMap = Record<string, CountryHighlight>;
 
+/** City highlight data for data-driven visualization */
+export interface CityHighlight {
+  /** Normalized intensity (0-1) for visualization scaling */
+  scale: number;
+  /** Optional custom highlight color */
+  color?: string;
+  /** City name for display */
+  name?: string;
+}
+
+/** Map of city IDs to highlight data */
+export type CityDataMap = Record<string, CityHighlight>;
+
 /** Surface color configuration */
 export interface SurfaceColors {
   /** Border/accent color */
@@ -77,6 +90,8 @@ export interface GlobeConfig {
   globeFillColor?: string;
   /** Show city markers (default: false) */
   showCities?: boolean;
+  /** City data for data-driven visualization */
+  cityData?: CityDataMap;
   /** Light theme mode - reduces bloom */
   isLightTheme?: boolean;
   /** Force transparent background */
