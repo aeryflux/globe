@@ -10,8 +10,9 @@ Portable 3D globe component for React and React Native (Expo).
 - **Three.js powered**: High-quality 3D rendering with WebGL
 - **Customizable themes**: Dark, Green, White surfaces
 - **Data visualization**: Highlight countries with custom colors
+- **City markers**: 185 major cities with hexagonal borders
 - **WebGL fallback**: Graceful degradation when WebGL unavailable
-- **Bundled models**: Pre-generated GLB files with 169 countries (Panama fix included)
+- **Bundled models**: Pre-generated GLB files with 169 countries and 185 cities
 
 ## Installation
 
@@ -56,7 +57,7 @@ import { Renderer } from 'expo-three';
 |------|------|---------|-------------|
 | `surface` | `'dark' \| 'green' \| 'white'` | `'green'` | Color theme |
 | `showCountries` | `boolean` | `false` | Show country fills |
-| `showCities` | `boolean` | `false` | Show city markers |
+| `showCities` | `boolean` | `false` | Show city markers with borders |
 | `rotationSpeed` | `number` | `0.0003` | Globe rotation speed |
 | `glowIntensity` | `number` | `0.5` | Border glow intensity |
 | `bloomStrength` | `number` | `0.3` | Post-processing bloom |
@@ -67,11 +68,11 @@ import { Renderer } from 'expo-three';
 
 | Model | Size | Use Case |
 |-------|------|----------|
-| `atlas_hex_subdiv_5.glb` | 2MB | Mobile (default) |
-| `atlas_hex_subdiv_6.glb` | 5.7MB | Desktop |
+| `atlas_hex_subdiv_5.glb` | 2MB | Mobile |
+| `atlas_hex_subdiv_6.glb` | 7.2MB | Desktop (with cities) |
 | `weather_hex_globe_subdiv_3.glb` | 212KB | Weather overlay |
 
-All models include the Panama fix (169 countries with `min_pass2_votes=1`).
+Desktop model includes 185 major cities with hexagonal borders centered in hex cells.
 
 ## Data Visualization
 
