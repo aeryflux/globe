@@ -16,6 +16,8 @@ export type {
   GlobeConfig,
   CountryHighlight,
   CountryDataMap,
+  CityHighlight,
+  CityDataMap,
   SurfaceColors,
   GlobeIndex,
 } from '../core/types';
@@ -30,6 +32,12 @@ export {
   createGlobeCamera,
   animateGlobeRotation,
   animateBorderPulse,
+  animateDataHighlights,
+  animateCityHighlights,
+  resetAllCountries,
+  resetAllCities,
+  type DataHighlightState,
+  type CityHighlightState,
 } from '../core/GlobeRenderer';
 
 /**
