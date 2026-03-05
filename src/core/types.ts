@@ -87,6 +87,14 @@ export interface GlobeConfig {
   dataHighlightColor?: string;
 }
 
+/** Original mesh state for animations (stored before any transforms) */
+export interface MeshOriginalState {
+  position: THREE.Vector3;
+  scale: THREE.Vector3;
+  /** Direction from globe center to mesh center (normalized) */
+  radialDirection: THREE.Vector3;
+}
+
 /** Globe mesh index for efficient lookups */
 export interface GlobeIndex {
   allCountryMeshes: THREE.Mesh[];
@@ -96,6 +104,8 @@ export interface GlobeIndex {
   globeMesh: THREE.Mesh | null;
   countryToBorder: Map<string, THREE.Mesh>;
   cityToCountry: Map<THREE.Mesh, string>;
+  /** Original mesh states for animation reset */
+  originalStates: Map<THREE.Mesh, MeshOriginalState>;
 }
 
 /** WebGL support check result */

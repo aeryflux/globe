@@ -6,8 +6,21 @@
  */
 
 import * as THREE from 'three';
-import type { GlobeConfig, GlobeIndex, SurfaceColors } from './types';
+import type { GlobeConfig, GlobeIndex, SurfaceColors, MeshOriginalState } from './types';
 import { SURFACES } from './types';
+
+/** Calculate mesh center from its geometry bounding box */
+function getMeshCenter(mesh: THREE.Mesh): THREE.Vector3 {
+  if (!mesh.geometry.boundingBox) {
+    mesh.geometry.computeBoundingBox();
+  }
+  const center = new THREE.Vector3();
+  if (mesh.geometry.boundingBox) {
+    mesh.geometry.boundingBox.getCenter(center);
+    center.applyMatrix4(mesh.matrixWorld);
+  }
+  return center;
+}
 
 export interface GlobeRendererOptions extends GlobeConfig {
   width: number;
@@ -30,7 +43,11 @@ export function buildGlobeIndex(model: THREE.Object3D): GlobeIndex {
     globeMesh: null,
     countryToBorder: new Map(),
     cityToCountry: new Map(),
+    originalStates: new Map(),
   };
+
+  // Update world matrices for accurate position calculation
+  model.updateMatrixWorld(true);
 
   model.traverse((child) => {
     if (!(child as THREE.Mesh).isMesh) return;
@@ -47,6 +64,14 @@ export function buildGlobeIndex(model: THREE.Object3D): GlobeIndex {
     // Country meshes
     if (nameLower.startsWith('country_') || nameLower.startsWith('cell_')) {
       index.allCountryMeshes.push(mesh);
+      // Store original state for radial animation
+      const center = getMeshCenter(mesh);
+      const radialDir = center.clone().normalize();
+      index.originalStates.set(mesh, {
+        position: mesh.position.clone(),
+        scale: mesh.scale.clone(),
+        radialDirection: radialDir,
+      });
       return;
     }
 
@@ -65,6 +90,14 @@ export function buildGlobeIndex(model: THREE.Object3D): GlobeIndex {
       const isIndex = /^\d+$/.test(lastPart);
       const countryName = isIndex ? parts.slice(0, -1).join('_') : borderPart;
       index.countryToBorder.set(countryName, mesh);
+      // Store original state for border sync
+      const center = getMeshCenter(mesh);
+      const radialDir = center.clone().normalize();
+      index.originalStates.set(mesh, {
+        position: mesh.position.clone(),
+        scale: mesh.scale.clone(),
+        radialDirection: radialDir,
+      });
       return;
     }
 
@@ -159,7 +192,7 @@ export function applyGlobeMaterials(
       const matchedData = countryDataMap.get(countryName) || countryDataMap.get(countryName.replace(/_/g, ''));
 
       if (hasData && matchedData) {
-        // Highlighted country
+        // Highlighted country - use radial displacement instead of uniform scale
         const color = new THREE.Color(matchedData.color || highlightColor);
         mesh.material = new THREE.MeshStandardMaterial({
           color: color,
@@ -169,7 +202,15 @@ export function applyGlobeMaterials(
           roughness: 0.5,
           side: THREE.DoubleSide,
         });
-        mesh.scale.setScalar(1 + matchedData.scale * 0.15);
+        // Apply radial displacement (outward from globe center)
+        const originalState = index.originalStates.get(mesh);
+        if (originalState) {
+          const displacement = matchedData.scale * 0.08; // Max 8% outward
+          mesh.position.copy(originalState.position)
+            .addScaledVector(originalState.radialDirection, displacement);
+          // Minimal scale for visual pop (not uniform - only slight)
+          mesh.scale.setScalar(1 + matchedData.scale * 0.03);
+        }
       } else if (hasData) {
         // Dimmed country (when data is active)
         mesh.material = new THREE.MeshStandardMaterial({
@@ -301,5 +342,101 @@ export function animateBorderPulse(
     if (mat.isMeshStandardMaterial) {
       mat.emissiveIntensity = glowIntensity * pulse * 0.5;
     }
+  }
+}
+
+/** Data highlight state for animation */
+export interface DataHighlightState {
+  mesh: THREE.Mesh;
+  borderMesh?: THREE.Mesh;
+  intensity: number;
+  color: string;
+  startTime: number;
+}
+
+/**
+ * Animate data-driven country highlights with radial displacement
+ * Call this in your render loop for smooth animations
+ */
+export function animateDataHighlights(
+  index: GlobeIndex,
+  highlights: Map<string, DataHighlightState>,
+  time: number,
+  glowIntensity: number = 0.5
+): void {
+  for (const [, data] of highlights) {
+    const mat = data.mesh.material as THREE.MeshStandardMaterial;
+    if (!mat.isMeshStandardMaterial) continue;
+
+    const originalState = index.originalStates.get(data.mesh);
+    if (!originalState) continue;
+
+    // Time since this highlight started
+    const timeSinceStart = time - data.startTime;
+
+    // Entry animation (0-0.5s): ease in
+    const entryDelay = (1 - data.intensity) * 0.3;
+    const entryProgress = Math.min(1, Math.max(0, (timeSinceStart - entryDelay) / 0.4));
+    const entryEase = 1 - Math.pow(1 - entryProgress, 3); // ease-out cubic
+
+    // Breathing pulse (continuous)
+    const breathingSpeed = 1.5 + data.intensity * 0.5;
+    const breathingPulse = 0.85 + 0.15 * Math.sin(time * breathingSpeed);
+
+    // Radial displacement: outward from globe center
+    const baseDisplacement = data.intensity * 0.08;
+    const animatedDisplacement = baseDisplacement * entryEase * breathingPulse;
+
+    // Apply position offset along radial direction
+    data.mesh.position.copy(originalState.position)
+      .addScaledVector(originalState.radialDirection, animatedDisplacement);
+
+    // Minimal scale for visual emphasis
+    const baseScale = 1 + data.intensity * 0.03;
+    data.mesh.scale.setScalar(baseScale * (0.95 + entryEase * 0.05));
+
+    // Emissive intensity pulse
+    const baseEmissive = 0.3 + data.intensity * 0.4;
+    mat.emissiveIntensity = baseEmissive * breathingPulse * (0.5 + entryProgress * 0.5);
+
+    // Sync border with country displacement
+    if (data.borderMesh) {
+      const borderOriginal = index.originalStates.get(data.borderMesh);
+      if (borderOriginal) {
+        data.borderMesh.position.copy(borderOriginal.position)
+          .addScaledVector(borderOriginal.radialDirection, animatedDisplacement);
+        data.borderMesh.scale.setScalar(baseScale * (0.95 + entryEase * 0.05));
+      }
+
+      const borderMat = data.borderMesh.material as THREE.MeshStandardMaterial;
+      if (borderMat.isMeshStandardMaterial) {
+        borderMat.color.set(data.color);
+        borderMat.emissive.set(data.color);
+        borderMat.emissiveIntensity = glowIntensity * (1.5 + data.intensity) * breathingPulse;
+      }
+    }
+  }
+}
+
+/**
+ * Reset mesh to original state (for clearing highlights)
+ */
+export function resetMeshState(mesh: THREE.Mesh, index: GlobeIndex): void {
+  const originalState = index.originalStates.get(mesh);
+  if (originalState) {
+    mesh.position.copy(originalState.position);
+    mesh.scale.copy(originalState.scale);
+  }
+}
+
+/**
+ * Reset all country meshes to original state
+ */
+export function resetAllCountries(index: GlobeIndex): void {
+  for (const mesh of index.allCountryMeshes) {
+    resetMeshState(mesh, index);
+  }
+  for (const mesh of index.allBorderMeshes) {
+    resetMeshState(mesh, index);
   }
 }
