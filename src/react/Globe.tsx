@@ -75,6 +75,12 @@ export function Globe({
     forceTransparent = false,
   } = config;
 
+  // Refs for animation loop (avoids recreating scene on prop changes)
+  const rotationSpeedRef = useRef(rotationSpeed);
+  const glowIntensityRef = useRef(glowIntensity);
+  rotationSpeedRef.current = rotationSpeed;
+  glowIntensityRef.current = glowIntensity;
+
   // Check WebGL support on mount
   useEffect(() => {
     if (!checkWebGLSupport()) {
@@ -183,7 +189,7 @@ export function Globe({
       }
     );
 
-    // Animation loop
+    // Animation loop (uses refs for latest values)
     const animate = () => {
       if (!sceneRef.current) return;
 
@@ -192,12 +198,12 @@ export function Globe({
       const t = sceneRef.current.time;
 
       if (sceneRef.current.model && sceneRef.current.index) {
-        animateGlobeRotation(sceneRef.current.model, t, rotationSpeed);
-        animateBorderPulse(sceneRef.current.index, t, glowIntensity);
+        animateGlobeRotation(sceneRef.current.model, t, rotationSpeedRef.current);
+        animateBorderPulse(sceneRef.current.index, t, glowIntensityRef.current);
 
         // Animate data highlights if any
         if (sceneRef.current.highlights.size > 0) {
-          animateDataHighlights(sceneRef.current.index, sceneRef.current.highlights, t, glowIntensity);
+          animateDataHighlights(sceneRef.current.index, sceneRef.current.highlights, t, glowIntensityRef.current);
         }
       }
 
@@ -242,7 +248,8 @@ export function Globe({
 
       sceneRef.current = null;
     };
-  }, [webglError, modelUrl, colors, config, rotationSpeed, bloomStrength, glowIntensity, isLightTheme, forceTransparent]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- Scene setup only on mount/modelUrl change
+  }, [webglError, modelUrl]);
 
   // Build highlights when countryData changes
   useEffect(() => {
