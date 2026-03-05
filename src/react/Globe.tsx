@@ -280,12 +280,12 @@ export function Globe({
 
       const matchedData = countryDataMap.get(countryName) || countryDataMap.get(countryName.replace(/_/g, ''));
       if (matchedData) {
-        // Find border mesh
-        const borderMesh = index.countryToBorder.get(countryName);
+        // Find border meshes (array)
+        const borderMeshes = index.countryToBorder.get(countryName) || [];
 
         newHighlights.set(mesh.name, {
           mesh,
-          borderMesh,
+          borderMeshes,
           intensity: matchedData.scale,
           color: matchedData.color || highlightColor,
           startTime: time,

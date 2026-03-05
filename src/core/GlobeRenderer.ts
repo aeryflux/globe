@@ -89,7 +89,10 @@ export function buildGlobeIndex(model: THREE.Object3D): GlobeIndex {
       const lastPart = parts[parts.length - 1];
       const isIndex = /^\d+$/.test(lastPart);
       const countryName = isIndex ? parts.slice(0, -1).join('_') : borderPart;
-      index.countryToBorder.set(countryName, mesh);
+      // Store in array (multiple borders per country)
+      const existing = index.countryToBorder.get(countryName) || [];
+      existing.push(mesh);
+      index.countryToBorder.set(countryName, existing);
       // Store original state for border sync
       const center = getMeshCenter(mesh);
       const radialDir = center.clone().normalize();
@@ -347,7 +350,7 @@ export function animateBorderPulse(
 /** Data highlight state for animation */
 export interface DataHighlightState {
   mesh: THREE.Mesh;
-  borderMesh?: THREE.Mesh;
+  borderMeshes: THREE.Mesh[];
   intensity: number;
   color: string;
   startTime: number;
@@ -397,17 +400,17 @@ export function animateDataHighlights(
     const baseEmissive = 0.3 + data.intensity * 0.4;
     mat.emissiveIntensity = baseEmissive * breathingPulse * (0.5 + entryProgress * 0.5);
 
-    // Make border follow country using SAME radial direction
-    if (data.borderMesh) {
-      const borderOriginal = index.originalStates.get(data.borderMesh);
+    // Make ALL borders follow with their OWN radial direction
+    for (const borderMesh of data.borderMeshes) {
+      const borderOriginal = index.originalStates.get(borderMesh);
       if (borderOriginal) {
-        // Apply same displacement using COUNTRY's radial direction
-        data.borderMesh.position.copy(borderOriginal.position)
-          .addScaledVector(originalState.radialDirection, animatedDisplacement);
-        data.borderMesh.scale.copy(borderOriginal.scale);
+        // Apply displacement using BORDER's own radial direction
+        borderMesh.position.copy(borderOriginal.position)
+          .addScaledVector(borderOriginal.radialDirection, animatedDisplacement);
+        borderMesh.scale.copy(borderOriginal.scale);
       }
 
-      const borderMat = data.borderMesh.material as THREE.MeshStandardMaterial;
+      const borderMat = borderMesh.material as THREE.MeshStandardMaterial;
       if (borderMat.isMeshStandardMaterial) {
         borderMat.color.set(data.color);
         borderMat.emissive.set(data.color);
