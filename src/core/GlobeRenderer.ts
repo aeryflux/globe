@@ -202,14 +202,14 @@ export function applyGlobeMaterials(
           roughness: 0.5,
           side: THREE.DoubleSide,
         });
-        // Apply radial displacement (outward from globe center)
+        // Subtle radial displacement (2% max to avoid border misalignment)
         const originalState = index.originalStates.get(mesh);
         if (originalState) {
-          const displacement = matchedData.scale * 0.08; // Max 8% outward
+          const displacement = matchedData.scale * 0.02;
           mesh.position.copy(originalState.position)
             .addScaledVector(originalState.radialDirection, displacement);
-          // Minimal scale for visual pop (not uniform - only slight)
-          mesh.scale.setScalar(1 + matchedData.scale * 0.03);
+          // Keep original scale - no scaling to avoid border issues
+          mesh.scale.copy(originalState.scale);
         }
       } else if (hasData) {
         // Dimmed country (when data is active)
@@ -383,31 +383,23 @@ export function animateDataHighlights(
     const breathingSpeed = 1.5 + data.intensity * 0.5;
     const breathingPulse = 0.85 + 0.15 * Math.sin(time * breathingSpeed);
 
-    // Radial displacement: outward from globe center
-    const baseDisplacement = data.intensity * 0.08;
+    // Subtle radial displacement (2% max to avoid border issues)
+    const baseDisplacement = data.intensity * 0.02;
     const animatedDisplacement = baseDisplacement * entryEase * breathingPulse;
 
     // Apply position offset along radial direction
     data.mesh.position.copy(originalState.position)
       .addScaledVector(originalState.radialDirection, animatedDisplacement);
 
-    // Minimal scale for visual emphasis
-    const baseScale = 1 + data.intensity * 0.03;
-    data.mesh.scale.setScalar(baseScale * (0.95 + entryEase * 0.05));
+    // Keep original scale - no scaling to avoid border misalignment
+    data.mesh.scale.copy(originalState.scale);
 
     // Emissive intensity pulse
     const baseEmissive = 0.3 + data.intensity * 0.4;
     mat.emissiveIntensity = baseEmissive * breathingPulse * (0.5 + entryProgress * 0.5);
 
-    // Sync border with country displacement
+    // Border visual effect only - no position change to avoid misalignment
     if (data.borderMesh) {
-      const borderOriginal = index.originalStates.get(data.borderMesh);
-      if (borderOriginal) {
-        data.borderMesh.position.copy(borderOriginal.position)
-          .addScaledVector(borderOriginal.radialDirection, animatedDisplacement);
-        data.borderMesh.scale.setScalar(baseScale * (0.95 + entryEase * 0.05));
-      }
-
       const borderMat = data.borderMesh.material as THREE.MeshStandardMaterial;
       if (borderMat.isMeshStandardMaterial) {
         borderMat.color.set(data.color);
