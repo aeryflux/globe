@@ -109,7 +109,19 @@ export function applyGlobeMaterials(
   colors: SurfaceColors,
   config: GlobeConfig
 ): void {
-  const { showCountries = false, showCities = false, glowIntensity = 1.2 } = config;
+  const { showCountries = false, showCities = false, glowIntensity = 0.6, countryData, dataHighlightColor } = config;
+
+  // Build country data lookup (lowercase, normalized)
+  const countryDataMap = new Map<string, { scale: number; color?: string }>();
+  if (countryData) {
+    for (const [name, data] of Object.entries(countryData)) {
+      countryDataMap.set(name.toLowerCase().replace(/\s+/g, '_'), data);
+      countryDataMap.set(name.toLowerCase().replace(/\s+/g, ''), data);
+      countryDataMap.set(name.toLowerCase(), data);
+    }
+  }
+  const hasData = countryDataMap.size > 0;
+  const highlightColor = dataHighlightColor || colors.accent;
 
   // Configure GlobeFill (ocean)
   if (index.globeMesh) {
@@ -117,10 +129,10 @@ export function applyGlobeMaterials(
     if (showCountries) {
       index.globeMesh.material = new THREE.MeshStandardMaterial({
         color: colors.globeFillColor,
-        emissive: new THREE.Color(colors.globeFillColor).multiplyScalar(0.2),
-        emissiveIntensity: 0.3,
-        metalness: 0.2,
-        roughness: 0.7,
+        emissive: new THREE.Color(colors.globeFillColor).multiplyScalar(0.1),
+        emissiveIntensity: 0.1,
+        metalness: 0.1,
+        roughness: 0.8,
         side: THREE.FrontSide,
       });
       index.globeMesh.renderOrder = -1;
@@ -131,15 +143,54 @@ export function applyGlobeMaterials(
   for (const mesh of index.allCountryMeshes) {
     mesh.visible = showCountries;
     if (showCountries) {
-      mesh.material = new THREE.MeshStandardMaterial({
-        color: colors.countryColor,
-        emissive: new THREE.Color(colors.countryColor).multiplyScalar(0.4),
-        emissiveIntensity: 0.6,
-        metalness: 0.1,
-        roughness: 0.5,
-        side: THREE.DoubleSide,
-        flatShading: false,
-      });
+      // Extract country name from mesh
+      const meshName = mesh.name.toLowerCase();
+      let baseName = '';
+      if (meshName.startsWith('country_')) baseName = meshName.replace('country_', '');
+      else if (meshName.startsWith('cell_')) baseName = meshName.replace('cell_', '');
+
+      // Remove trailing index
+      const parts = baseName.split('_');
+      const lastPart = parts[parts.length - 1];
+      const isIndex = /^\d+$/.test(lastPart);
+      const countryName = isIndex ? parts.slice(0, -1).join('_') : baseName;
+
+      // Check if country has data highlight
+      const matchedData = countryDataMap.get(countryName) || countryDataMap.get(countryName.replace(/_/g, ''));
+
+      if (hasData && matchedData) {
+        // Highlighted country
+        const color = new THREE.Color(matchedData.color || highlightColor);
+        mesh.material = new THREE.MeshStandardMaterial({
+          color: color,
+          emissive: color,
+          emissiveIntensity: 0.3 + matchedData.scale * 0.3,
+          metalness: 0.2,
+          roughness: 0.5,
+          side: THREE.DoubleSide,
+        });
+        mesh.scale.setScalar(1 + matchedData.scale * 0.15);
+      } else if (hasData) {
+        // Dimmed country (when data is active)
+        mesh.material = new THREE.MeshStandardMaterial({
+          color: new THREE.Color(colors.countryColor).multiplyScalar(0.4),
+          emissive: new THREE.Color(colors.countryColor).multiplyScalar(0.05),
+          emissiveIntensity: 0.1,
+          metalness: 0.1,
+          roughness: 0.7,
+          side: THREE.DoubleSide,
+        });
+      } else {
+        // Normal country (no data)
+        mesh.material = new THREE.MeshStandardMaterial({
+          color: colors.countryColor,
+          emissive: new THREE.Color(colors.countryColor).multiplyScalar(0.1),
+          emissiveIntensity: 0.15,
+          metalness: 0.1,
+          roughness: 0.6,
+          side: THREE.DoubleSide,
+        });
+      }
     }
   }
 
@@ -149,10 +200,10 @@ export function applyGlobeMaterials(
     if (showCities) {
       mesh.material = new THREE.MeshStandardMaterial({
         color: colors.countryColor,
-        emissive: new THREE.Color(colors.countryColor).multiplyScalar(0.4),
-        emissiveIntensity: 0.6,
+        emissive: new THREE.Color(colors.countryColor).multiplyScalar(0.1),
+        emissiveIntensity: 0.15,
         metalness: 0.1,
-        roughness: 0.5,
+        roughness: 0.6,
         side: THREE.DoubleSide,
       });
     }
@@ -163,17 +214,17 @@ export function applyGlobeMaterials(
     mesh.visible = false;
   }
 
-  // Configure country borders with glow
+  // Configure country borders with subtle glow
   for (const mesh of index.allBorderMeshes) {
     mesh.visible = true;
     mesh.material = new THREE.MeshStandardMaterial({
       color: colors.accent,
       emissive: colors.accent,
-      emissiveIntensity: glowIntensity,
-      metalness: 0.8,
-      roughness: 0.2,
+      emissiveIntensity: glowIntensity * 0.5,
+      metalness: 0.3,
+      roughness: 0.4,
       transparent: true,
-      opacity: 0.9,
+      opacity: 0.85,
       side: THREE.DoubleSide,
     });
   }
@@ -185,23 +236,23 @@ export function applyGlobeMaterials(
 export function createGlobeScene(colors: SurfaceColors): THREE.Scene {
   const scene = new THREE.Scene();
 
-  // Ambient light
-  const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
+  // Ambient light (reduced)
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
   scene.add(ambientLight);
 
-  // Main directional light
-  const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
+  // Main directional light (reduced)
+  const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
   directionalLight.position.set(2, 2, 5);
   scene.add(directionalLight);
 
-  // Fill light
-  const fillLight = new THREE.DirectionalLight(0xffffff, 0.6);
+  // Fill light (reduced)
+  const fillLight = new THREE.DirectionalLight(0xffffff, 0.3);
   fillLight.position.set(-2, -1, 3);
   scene.add(fillLight);
 
-  // Accent point light
-  const pointLight = new THREE.PointLight(colors.accent, 1.2, 20);
-  pointLight.position.set(0, 0, 5);
+  // Accent point light (subtle)
+  const pointLight = new THREE.PointLight(colors.accent, 0.4, 15);
+  pointLight.position.set(0, 0, 4);
   scene.add(pointLight);
 
   return scene;
@@ -237,18 +288,18 @@ export function animateGlobeRotation(
 }
 
 /**
- * Animate border pulse
+ * Animate border pulse (subtle)
  */
 export function animateBorderPulse(
   index: GlobeIndex,
   time: number,
-  glowIntensity: number = 1.2
+  glowIntensity: number = 0.5
 ): void {
-  const pulse = 0.9 + 0.3 * Math.sin(time * 1.5);
+  const pulse = 0.85 + 0.15 * Math.sin(time * 1.2);
   for (const mesh of index.allBorderMeshes) {
     const mat = mesh.material as THREE.MeshStandardMaterial;
     if (mat.isMeshStandardMaterial) {
-      mat.emissiveIntensity = glowIntensity * pulse;
+      mat.emissiveIntensity = glowIntensity * pulse * 0.5;
     }
   }
 }
