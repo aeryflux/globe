@@ -8,6 +8,7 @@
 import { useRef, useEffect, useState, useMemo, CSSProperties } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
@@ -59,6 +60,7 @@ export function Globe({
     camera: THREE.PerspectiveCamera;
     renderer: THREE.WebGLRenderer;
     composer: EffectComposer | null;
+    controls: OrbitControls | null;
     model: THREE.Group | null;
     index: GlobeIndex | null;
     animationId: number | null;
@@ -82,6 +84,7 @@ export function Globe({
     forceTransparent = false,
     showCountries = false,
     showCities = false,
+    enableControls = false,
   } = config;
 
   // Refs for animation loop (avoids recreating scene on prop changes)
@@ -156,9 +159,15 @@ export function Globe({
     renderer.toneMappingExposure = 1.5;
     container.appendChild(renderer.domElement);
 
-    // Disable pointer events for click-through
-    renderer.domElement.style.pointerEvents = 'none';
-    renderer.domElement.style.touchAction = 'none';
+    // Set pointer events based on controls
+    if (enableControls) {
+      renderer.domElement.style.pointerEvents = 'auto';
+      renderer.domElement.style.touchAction = 'none';
+      renderer.domElement.style.cursor = 'grab';
+    } else {
+      renderer.domElement.style.pointerEvents = 'none';
+      renderer.domElement.style.touchAction = 'none';
+    }
 
     // Post-processing (disabled for light theme or transparent)
     let composer: EffectComposer | null = null;
@@ -176,12 +185,34 @@ export function Globe({
       composer.addPass(bloomPass);
     }
 
+    // Setup OrbitControls if enabled
+    let controls: OrbitControls | null = null;
+    if (enableControls) {
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.enableZoom = false;
+      controls.enablePan = false;
+      controls.rotateSpeed = 0.5;
+      controls.minPolarAngle = Math.PI * 0.2;
+      controls.maxPolarAngle = Math.PI * 0.8;
+
+      // Cursor feedback
+      controls.addEventListener('start', () => {
+        renderer.domElement.style.cursor = 'grabbing';
+      });
+      controls.addEventListener('end', () => {
+        renderer.domElement.style.cursor = 'grab';
+      });
+    }
+
     // Store refs
     sceneRef.current = {
       scene,
       camera,
       renderer,
       composer,
+      controls,
       model: null,
       index: null,
       animationId: null,
@@ -224,8 +255,16 @@ export function Globe({
       sceneRef.current.time += 0.016;
       const t = sceneRef.current.time;
 
+      // Update controls if enabled
+      if (sceneRef.current.controls) {
+        sceneRef.current.controls.update();
+      }
+
       if (sceneRef.current.model && sceneRef.current.index) {
-        animateGlobeRotation(sceneRef.current.model, t, rotationSpeedRef.current);
+        // Only auto-rotate if controls are not enabled (user controls rotation)
+        if (!enableControls) {
+          animateGlobeRotation(sceneRef.current.model, t, rotationSpeedRef.current);
+        }
         animateBorderPulse(sceneRef.current.index, t, glowIntensityRef.current);
 
         // Animate data highlights if any
@@ -266,6 +305,7 @@ export function Globe({
         cancelAnimationFrame(sceneRef.current.animationId);
       }
 
+      if (controls) controls.dispose();
       renderer.dispose();
       if (composer) composer.dispose();
 
@@ -275,8 +315,8 @@ export function Globe({
 
       sceneRef.current = null;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- Scene setup only on mount/modelUrl change
-  }, [webglError, modelUrl]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- Scene setup only on mount/modelUrl/controls change
+  }, [webglError, modelUrl, enableControls]);
 
   // Build highlights when countryData actually changes (using stable key comparison)
   useEffect(() => {

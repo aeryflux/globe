@@ -80,6 +80,8 @@ export interface GlobeConfig {
   glowIntensity?: number;
   /** Rotation speed (default: 0.0003) */
   rotationSpeed?: number;
+  /** Enable mouse/touch drag rotation (default: false) */
+  enableControls?: boolean;
   /** Bloom strength for post-processing (default: 1.0) */
   bloomStrength?: number;
   /** Show country fills (default: false for border-only) */
