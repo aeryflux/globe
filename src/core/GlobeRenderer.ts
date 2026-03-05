@@ -195,7 +195,7 @@ export function applyGlobeMaterials(
       const matchedData = countryDataMap.get(countryName) || countryDataMap.get(countryName.replace(/_/g, ''));
 
       if (hasData && matchedData) {
-        // Highlighted country - use radial displacement instead of uniform scale
+        // Highlighted country - material only, position handled by animateDataHighlights
         const color = new THREE.Color(matchedData.color || highlightColor);
         mesh.material = new THREE.MeshStandardMaterial({
           color: color,
@@ -205,14 +205,7 @@ export function applyGlobeMaterials(
           roughness: 0.5,
           side: THREE.DoubleSide,
         });
-        // Radial displacement for country and border
-        const originalState = index.originalStates.get(mesh);
-        if (originalState) {
-          const displacement = matchedData.scale * 0.06;
-          mesh.position.copy(originalState.position)
-            .addScaledVector(originalState.radialDirection, displacement);
-          mesh.scale.copy(originalState.scale);
-        }
+        // Position is handled by animateDataHighlights in render loop
       } else if (hasData) {
         // Dimmed country (when data is active)
         mesh.material = new THREE.MeshStandardMaterial({

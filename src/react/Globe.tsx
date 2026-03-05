@@ -22,6 +22,7 @@ import {
   animateGlobeRotation,
   animateBorderPulse,
   animateDataHighlights,
+  resetAllCountries,
   type DataHighlightState,
 } from '../core/GlobeRenderer';
 import { checkWebGLSupport } from '../core/webgl';
@@ -245,14 +246,20 @@ export function Globe({
 
   // Build highlights when countryData changes
   useEffect(() => {
-    if (!sceneRef.current?.index || !countryData) {
-      if (sceneRef.current) {
-        sceneRef.current.highlights.clear();
-      }
+    if (!sceneRef.current?.index) return;
+
+    const { index, time } = sceneRef.current;
+
+    // Reset all positions first (smooth transition)
+    resetAllCountries(index);
+    sceneRef.current.highlights.clear();
+
+    // If no data, just reset and apply base materials
+    if (!countryData || Object.keys(countryData).length === 0) {
+      applyGlobeMaterials(sceneRef.current.model!, index, colors, config);
       return;
     }
 
-    const { index, time } = sceneRef.current;
     const highlightColor = dataHighlightColor || colors.accent;
     const newHighlights = new Map<string, DataHighlightState>();
 
@@ -295,7 +302,7 @@ export function Globe({
 
     sceneRef.current.highlights = newHighlights;
 
-    // Reapply materials with data highlighting
+    // Apply materials (positions handled by animateDataHighlights)
     applyGlobeMaterials(sceneRef.current.model!, index, colors, { ...config, countryData, dataHighlightColor: highlightColor });
   }, [countryData, dataHighlightColor, colors, config]);
 
