@@ -118,6 +118,7 @@ export interface GlobeIndex {
   allCityMeshes: THREE.Mesh[];
   globeMesh: THREE.Mesh | null;
   countryToBorder: Map<string, THREE.Mesh[]>;
+  cityToBorder: Map<string, THREE.Mesh[]>;
   cityToCountry: Map<THREE.Mesh, string>;
   /** Original mesh states for animation reset */
   originalStates: Map<THREE.Mesh, MeshOriginalState>;

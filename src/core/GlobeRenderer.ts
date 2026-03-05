@@ -42,6 +42,7 @@ export function buildGlobeIndex(model: THREE.Object3D): GlobeIndex {
     allCityMeshes: [],
     globeMesh: null,
     countryToBorder: new Map(),
+    cityToBorder: new Map(),
     cityToCountry: new Map(),
     originalStates: new Map(),
   };
@@ -78,6 +79,23 @@ export function buildGlobeIndex(model: THREE.Object3D): GlobeIndex {
     // City borders (separate from country borders)
     if (nameLower.startsWith('border_city_')) {
       index.allCityBorderMeshes.push(mesh);
+      // Extract city name from border_city_<country>_<city> pattern
+      const borderPart = nameLower.replace('border_city_', '');
+      const parts = borderPart.split('_');
+      // City name is usually the last part
+      const cityName = parts[parts.length - 1] || borderPart;
+      // Store in array (multiple borders per city possible)
+      const existing = index.cityToBorder.get(cityName) || [];
+      existing.push(mesh);
+      index.cityToBorder.set(cityName, existing);
+      // Store original state for border animation
+      const center = getMeshCenter(mesh);
+      const radialDir = center.clone().normalize();
+      index.originalStates.set(mesh, {
+        position: mesh.position.clone(),
+        scale: mesh.scale.clone(),
+        radialDirection: radialDir,
+      });
       return;
     }
 
@@ -299,9 +317,58 @@ export function applyGlobeMaterials(
     }
   }
 
-  // Hide city borders (for now)
+  // Configure city borders
   for (const mesh of index.allCityBorderMeshes) {
-    mesh.visible = false;
+    mesh.visible = showCities;
+    if (showCities) {
+      // Extract city name from border
+      const meshName = mesh.name.toLowerCase();
+      const borderPart = meshName.replace('border_city_', '');
+      const parts = borderPart.split('_');
+      const cityName = parts[parts.length - 1] || borderPart;
+
+      // Check if city has data highlight
+      const matchedData = cityDataMap.get(cityName) || cityDataMap.get(borderPart);
+
+      if (hasCityData && matchedData) {
+        // Highlighted city border
+        const color = new THREE.Color(matchedData.color || highlightColor);
+        mesh.material = new THREE.MeshStandardMaterial({
+          color: color,
+          emissive: color,
+          emissiveIntensity: glowIntensity * (1.0 + matchedData.scale * 0.5),
+          metalness: 0.3,
+          roughness: 0.4,
+          transparent: true,
+          opacity: 0.9,
+          side: THREE.DoubleSide,
+        });
+      } else if (hasCityData) {
+        // Dimmed city border (when data is active)
+        mesh.material = new THREE.MeshStandardMaterial({
+          color: new THREE.Color(colors.accent).multiplyScalar(0.2),
+          emissive: new THREE.Color(colors.accent).multiplyScalar(0.05),
+          emissiveIntensity: glowIntensity * 0.2,
+          metalness: 0.2,
+          roughness: 0.5,
+          transparent: true,
+          opacity: 0.4,
+          side: THREE.DoubleSide,
+        });
+      } else {
+        // Normal city border (no data)
+        mesh.material = new THREE.MeshStandardMaterial({
+          color: colors.accent,
+          emissive: colors.accent,
+          emissiveIntensity: glowIntensity * 0.4,
+          metalness: 0.3,
+          roughness: 0.4,
+          transparent: true,
+          opacity: 0.75,
+          side: THREE.DoubleSide,
+        });
+      }
+    }
   }
 
   // Configure country borders with subtle glow
@@ -406,6 +473,7 @@ export interface DataHighlightState {
 /** City highlight state for animation */
 export interface CityHighlightState {
   mesh: THREE.Mesh;
+  borderMeshes: THREE.Mesh[];
   intensity: number;
   color: string;
   startTime: number;
@@ -518,6 +586,24 @@ export function animateCityHighlights(
     // Emissive intensity pulse
     const baseEmissive = 0.4 + data.intensity * 0.5;
     mat.emissiveIntensity = baseEmissive * breathingPulse * (0.5 + entryProgress * 0.5);
+
+    // Animate city borders with same displacement and pulse
+    for (const borderMesh of data.borderMeshes) {
+      const borderOriginal = index.originalStates.get(borderMesh);
+      if (borderOriginal) {
+        // Apply displacement using border's own radial direction
+        borderMesh.position.copy(borderOriginal.position)
+          .addScaledVector(borderOriginal.radialDirection, animatedDisplacement);
+        borderMesh.scale.copy(borderOriginal.scale);
+      }
+
+      const borderMat = borderMesh.material as THREE.MeshStandardMaterial;
+      if (borderMat.isMeshStandardMaterial) {
+        borderMat.color.set(data.color);
+        borderMat.emissive.set(data.color);
+        borderMat.emissiveIntensity = glowIntensity * (1.2 + data.intensity) * breathingPulse;
+      }
+    }
   }
 }
 
@@ -549,6 +635,9 @@ export function resetAllCountries(index: GlobeIndex): void {
  */
 export function resetAllCities(index: GlobeIndex): void {
   for (const mesh of index.allCityMeshes) {
+    resetMeshState(mesh, index);
+  }
+  for (const mesh of index.allCityBorderMeshes) {
     resetMeshState(mesh, index);
   }
 }
