@@ -202,13 +202,12 @@ export function applyGlobeMaterials(
           roughness: 0.5,
           side: THREE.DoubleSide,
         });
-        // Subtle radial displacement (2% max to avoid border misalignment)
+        // Radial displacement for country and border
         const originalState = index.originalStates.get(mesh);
         if (originalState) {
-          const displacement = matchedData.scale * 0.02;
+          const displacement = matchedData.scale * 0.06;
           mesh.position.copy(originalState.position)
             .addScaledVector(originalState.radialDirection, displacement);
-          // Keep original scale - no scaling to avoid border issues
           mesh.scale.copy(originalState.scale);
         }
       } else if (hasData) {
@@ -383,23 +382,31 @@ export function animateDataHighlights(
     const breathingSpeed = 1.5 + data.intensity * 0.5;
     const breathingPulse = 0.85 + 0.15 * Math.sin(time * breathingSpeed);
 
-    // Subtle radial displacement (2% max to avoid border issues)
-    const baseDisplacement = data.intensity * 0.02;
+    // Radial displacement - move country outward from globe center
+    const baseDisplacement = data.intensity * 0.06;
     const animatedDisplacement = baseDisplacement * entryEase * breathingPulse;
 
     // Apply position offset along radial direction
     data.mesh.position.copy(originalState.position)
       .addScaledVector(originalState.radialDirection, animatedDisplacement);
 
-    // Keep original scale - no scaling to avoid border misalignment
+    // Keep original scale
     data.mesh.scale.copy(originalState.scale);
 
     // Emissive intensity pulse
     const baseEmissive = 0.3 + data.intensity * 0.4;
     mat.emissiveIntensity = baseEmissive * breathingPulse * (0.5 + entryProgress * 0.5);
 
-    // Border visual effect only - no position change to avoid misalignment
+    // Make border follow country using SAME radial direction
     if (data.borderMesh) {
+      const borderOriginal = index.originalStates.get(data.borderMesh);
+      if (borderOriginal) {
+        // Apply same displacement using COUNTRY's radial direction
+        data.borderMesh.position.copy(borderOriginal.position)
+          .addScaledVector(originalState.radialDirection, animatedDisplacement);
+        data.borderMesh.scale.copy(borderOriginal.scale);
+      }
+
       const borderMat = data.borderMesh.material as THREE.MeshStandardMaterial;
       if (borderMat.isMeshStandardMaterial) {
         borderMat.color.set(data.color);
