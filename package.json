@@ -1,6 +1,6 @@
 {
   "name": "@aeryflux/globe",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "Portable 3D globe component for React and React Native (Expo)",
   "author": "martinbaud",
   "license": "MIT",
