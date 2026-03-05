@@ -21,6 +21,8 @@ import {
   createGlobeCamera,
   animateGlobeRotation,
   animateBorderPulse,
+  animateDataHighlights,
+  type DataHighlightState,
 } from '../core/GlobeRenderer';
 import { checkWebGLSupport } from '../core/webgl';
 import { GlobeFallback } from './GlobeFallback';
@@ -32,6 +34,10 @@ export interface GlobeProps extends GlobeConfig {
   modelUrl?: string;
   /** Show fallback message when WebGL unavailable */
   showFallbackMessage?: boolean;
+  /** Country data for highlighting (scale 0-1, optional color) */
+  countryData?: Record<string, { scale: number; color?: string }>;
+  /** Color for data highlights (default: accent color) */
+  dataHighlightColor?: string;
 }
 
 export function Globe({
@@ -39,6 +45,8 @@ export function Globe({
   style,
   modelUrl,
   showFallbackMessage = false,
+  countryData,
+  dataHighlightColor,
   ...config
 }: GlobeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -54,6 +62,7 @@ export function Globe({
     index: GlobeIndex | null;
     animationId: number | null;
     time: number;
+    highlights: Map<string, DataHighlightState>;
   } | null>(null);
 
   const colors = getSurfaceColors(config);
@@ -143,6 +152,7 @@ export function Globe({
       index: null,
       animationId: null,
       time: 0,
+      highlights: new Map(),
     };
 
     // Load model
@@ -183,6 +193,11 @@ export function Globe({
       if (sceneRef.current.model && sceneRef.current.index) {
         animateGlobeRotation(sceneRef.current.model, t, rotationSpeed);
         animateBorderPulse(sceneRef.current.index, t, glowIntensity);
+
+        // Animate data highlights if any
+        if (sceneRef.current.highlights.size > 0) {
+          animateDataHighlights(sceneRef.current.index, sceneRef.current.highlights, t, glowIntensity);
+        }
       }
 
       if (useDirectRender) {
@@ -227,6 +242,62 @@ export function Globe({
       sceneRef.current = null;
     };
   }, [webglError, modelUrl, colors, config, rotationSpeed, bloomStrength, glowIntensity, isLightTheme, forceTransparent]);
+
+  // Build highlights when countryData changes
+  useEffect(() => {
+    if (!sceneRef.current?.index || !countryData) {
+      if (sceneRef.current) {
+        sceneRef.current.highlights.clear();
+      }
+      return;
+    }
+
+    const { index, time } = sceneRef.current;
+    const highlightColor = dataHighlightColor || colors.accent;
+    const newHighlights = new Map<string, DataHighlightState>();
+
+    // Build country name lookup (lowercase, normalized)
+    const countryDataMap = new Map<string, { scale: number; color?: string }>();
+    for (const [name, data] of Object.entries(countryData)) {
+      countryDataMap.set(name.toLowerCase().replace(/\s+/g, '_'), data);
+      countryDataMap.set(name.toLowerCase().replace(/\s+/g, ''), data);
+      countryDataMap.set(name.toLowerCase(), data);
+    }
+
+    // Match countries to meshes
+    for (const mesh of index.allCountryMeshes) {
+      const meshName = mesh.name.toLowerCase();
+      let baseName = '';
+      if (meshName.startsWith('country_')) baseName = meshName.replace('country_', '');
+      else if (meshName.startsWith('cell_')) baseName = meshName.replace('cell_', '');
+      if (!baseName) continue;
+
+      // Remove trailing index
+      const parts = baseName.split('_');
+      const lastPart = parts[parts.length - 1];
+      const isIndex = /^\d+$/.test(lastPart);
+      const countryName = isIndex ? parts.slice(0, -1).join('_') : baseName;
+
+      const matchedData = countryDataMap.get(countryName) || countryDataMap.get(countryName.replace(/_/g, ''));
+      if (matchedData) {
+        // Find border mesh
+        const borderMesh = index.countryToBorder.get(countryName);
+
+        newHighlights.set(mesh.name, {
+          mesh,
+          borderMesh,
+          intensity: matchedData.scale,
+          color: matchedData.color || highlightColor,
+          startTime: time,
+        });
+      }
+    }
+
+    sceneRef.current.highlights = newHighlights;
+
+    // Reapply materials with data highlighting
+    applyGlobeMaterials(sceneRef.current.model!, index, colors, { ...config, countryData, dataHighlightColor: highlightColor });
+  }, [countryData, dataHighlightColor, colors, config]);
 
   // Show fallback if WebGL not supported
   if (webglError) {
