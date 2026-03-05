@@ -2,7 +2,7 @@
 
 Portable 3D globe component for React and React Native (Expo).
 
-![Globe Preview](https://raw.githubusercontent.com/aeryflux/globe/main/.github/preview.png)
+**[Live Demo](https://aeryflux.github.io/globe-demo/)**
 
 ## Features
 
@@ -58,8 +58,8 @@ import { Renderer } from 'expo-three';
 | `showCountries` | `boolean` | `false` | Show country fills |
 | `showCities` | `boolean` | `false` | Show city markers |
 | `rotationSpeed` | `number` | `0.0003` | Globe rotation speed |
-| `glowIntensity` | `number` | `1.2` | Border glow intensity |
-| `bloomStrength` | `number` | `1.0` | Post-processing bloom |
+| `glowIntensity` | `number` | `0.5` | Border glow intensity |
+| `bloomStrength` | `number` | `0.3` | Post-processing bloom |
 | `countryData` | `CountryDataMap` | - | Data-driven highlights |
 | `modelUrl` | `string` | bundled | Custom GLB model URL |
 
