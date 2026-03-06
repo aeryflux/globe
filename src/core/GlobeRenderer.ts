@@ -10,10 +10,10 @@ import type { GlobeConfig, GlobeIndex, SurfaceColors, MeshOriginalState } from '
 import { SURFACES } from './types';
 
 // City rendering constants
-/** Base scale multiplier to make cities more visible */
-export const CITY_BASE_SCALE = 3.0;
-/** Base radial offset to position cities above countries */
-export const CITY_BASE_OFFSET = 0.03;
+/** Base scale multiplier for runtime adjustment */
+export const CITY_BASE_SCALE = 1.0;
+/** Base radial offset for runtime adjustment */
+export const CITY_BASE_OFFSET = 0.0;
 
 /** Calculate mesh center from its geometry bounding box */
 function getMeshCenter(mesh: THREE.Mesh): THREE.Vector3 {
