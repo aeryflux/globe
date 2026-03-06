@@ -9,6 +9,12 @@ import * as THREE from 'three';
 import type { GlobeConfig, GlobeIndex, SurfaceColors, MeshOriginalState } from './types';
 import { SURFACES } from './types';
 
+// City rendering constants
+/** Base scale multiplier to make cities more visible */
+export const CITY_BASE_SCALE = 3.0;
+/** Base radial offset to position cities above countries */
+export const CITY_BASE_OFFSET = 0.03;
+
 /** Calculate mesh center from its geometry bounding box */
 function getMeshCenter(mesh: THREE.Mesh): THREE.Vector3 {
   if (!mesh.geometry.boundingBox) {
@@ -272,6 +278,14 @@ export function applyGlobeMaterials(
   for (const mesh of index.allCityMeshes) {
     mesh.visible = showCities;
     if (showCities) {
+      // Apply base scale and radial offset
+      const originalState = index.originalStates.get(mesh);
+      if (originalState) {
+        mesh.scale.copy(originalState.scale).multiplyScalar(CITY_BASE_SCALE);
+        mesh.position.copy(originalState.position)
+          .addScaledVector(originalState.radialDirection, CITY_BASE_OFFSET);
+      }
+
       // Extract city name from mesh
       const meshName = mesh.name.toLowerCase();
       const cityPart = meshName.replace('city_', '');
@@ -321,6 +335,13 @@ export function applyGlobeMaterials(
   for (const mesh of index.allCityBorderMeshes) {
     mesh.visible = showCities;
     if (showCities) {
+      // Apply base radial offset to match city position
+      const originalState = index.originalStates.get(mesh);
+      if (originalState) {
+        mesh.position.copy(originalState.position)
+          .addScaledVector(originalState.radialDirection, CITY_BASE_OFFSET);
+      }
+
       // Extract city name from border
       const meshName = mesh.name.toLowerCase();
       const borderPart = meshName.replace('border_city_', '');
@@ -572,14 +593,14 @@ export function animateCityHighlights(
     const breathingSpeed = 2.0 + data.intensity * 0.8;
     const breathingPulse = 0.8 + 0.2 * Math.sin(time * breathingSpeed);
 
-    // Scale animation - cities grow slightly
-    const baseScale = 1 + data.intensity * 0.3;
-    const animatedScale = 1 + (baseScale - 1) * entryEase * breathingPulse;
+    // Scale animation - cities grow slightly on top of base scale
+    const highlightScale = 1 + data.intensity * 0.3;
+    const animatedScale = CITY_BASE_SCALE * (1 + (highlightScale - 1) * entryEase * breathingPulse);
     data.mesh.scale.copy(originalState.scale).multiplyScalar(animatedScale);
 
-    // Radial displacement - cities pop out slightly
-    const baseDisplacement = data.intensity * 0.03;
-    const animatedDisplacement = baseDisplacement * entryEase * breathingPulse;
+    // Radial displacement - cities pop out slightly on top of base offset
+    const highlightDisplacement = data.intensity * 0.03;
+    const animatedDisplacement = CITY_BASE_OFFSET + highlightDisplacement * entryEase * breathingPulse;
     data.mesh.position.copy(originalState.position)
       .addScaledVector(originalState.radialDirection, animatedDisplacement);
 
@@ -587,11 +608,11 @@ export function animateCityHighlights(
     const baseEmissive = 0.4 + data.intensity * 0.5;
     mat.emissiveIntensity = baseEmissive * breathingPulse * (0.5 + entryProgress * 0.5);
 
-    // Animate city borders with same displacement and pulse
+    // Animate city borders with same displacement (already includes base offset)
     for (const borderMesh of data.borderMeshes) {
       const borderOriginal = index.originalStates.get(borderMesh);
       if (borderOriginal) {
-        // Apply displacement using border's own radial direction
+        // Apply displacement using border's own radial direction (includes base offset)
         borderMesh.position.copy(borderOriginal.position)
           .addScaledVector(borderOriginal.radialDirection, animatedDisplacement);
         borderMesh.scale.copy(borderOriginal.scale);
@@ -631,13 +652,31 @@ export function resetAllCountries(index: GlobeIndex): void {
 }
 
 /**
- * Reset all city meshes to original state
+ * Reset a city mesh to base state (with base scale and offset)
+ */
+function resetCityMeshState(mesh: THREE.Mesh, index: GlobeIndex, isCity: boolean): void {
+  const originalState = index.originalStates.get(mesh);
+  if (originalState) {
+    // Restore position with base offset
+    mesh.position.copy(originalState.position)
+      .addScaledVector(originalState.radialDirection, CITY_BASE_OFFSET);
+    // Restore scale with base multiplier (only for city meshes, not borders)
+    if (isCity) {
+      mesh.scale.copy(originalState.scale).multiplyScalar(CITY_BASE_SCALE);
+    } else {
+      mesh.scale.copy(originalState.scale);
+    }
+  }
+}
+
+/**
+ * Reset all city meshes to base state (with base scale and offset)
  */
 export function resetAllCities(index: GlobeIndex): void {
   for (const mesh of index.allCityMeshes) {
-    resetMeshState(mesh, index);
+    resetCityMeshState(mesh, index, true);
   }
   for (const mesh of index.allCityBorderMeshes) {
-    resetMeshState(mesh, index);
+    resetCityMeshState(mesh, index, false);
   }
 }
