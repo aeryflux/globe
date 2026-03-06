@@ -68,8 +68,14 @@ export function buildGlobeIndex(model: THREE.Object3D): GlobeIndex {
       return;
     }
 
-    // Country meshes
-    if (nameLower.startsWith('country_') || nameLower.startsWith('cell_')) {
+    // Country meshes (with prefix or Natural Earth format like "France_0")
+    const isCountryMesh = nameLower.startsWith('country_') ||
+                          nameLower.startsWith('cell_') ||
+                          // Natural Earth GLB format: "CountryName_N" where N is index
+                          (/^[a-z].*_\d+$/.test(nameLower) &&
+                           !nameLower.startsWith('border_') &&
+                           !nameLower.startsWith('city_'));
+    if (isCountryMesh) {
       index.allCountryMeshes.push(mesh);
       // Store original state for radial animation
       const center = getMeshCenter(mesh);
@@ -213,11 +219,12 @@ export function applyGlobeMaterials(
     if (showCountries) {
       // Extract country name from mesh
       const meshName = mesh.name.toLowerCase();
-      let baseName = '';
+      let baseName = meshName;
       if (meshName.startsWith('country_')) baseName = meshName.replace('country_', '');
       else if (meshName.startsWith('cell_')) baseName = meshName.replace('cell_', '');
+      // Natural Earth format already has correct base name
 
-      // Remove trailing index
+      // Remove trailing index (e.g., "france_0" -> "france")
       const parts = baseName.split('_');
       const lastPart = parts[parts.length - 1];
       const isIndex = /^\d+$/.test(lastPart);
