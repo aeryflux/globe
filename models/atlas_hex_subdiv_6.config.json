@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-03-05T14:56:02Z",
+  "generated_at": "2026-03-06T19:16:56Z",
   "mode": "atlas",
   "ico_subdiv": 6,
   "hex_label": 6,
@@ -21,8 +21,8 @@
   },
   "cities": {
     "enabled": true,
-    "count": 157,
-    "borders": 157,
+    "count": 185,
+    "borders": 185,
     "sides": 6
   }
 }
