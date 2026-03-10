@@ -91,15 +91,48 @@ export function buildGlobeIndex(model: THREE.Object3D): GlobeIndex {
     // City borders (separate from country borders)
     if (nameLower.startsWith('border_city_')) {
       index.allCityBorderMeshes.push(mesh);
-      // Extract city name from border_city_<country>_<city> pattern
+      // Extract city name from border patterns:
+      // subdiv_7: border_city_{CityName}_{ID} (e.g., border_city_Paris_19)
+      // subdiv_6: border_city_{Country}_{CityName}_{ID} (e.g., border_city_France_Paris_42)
       const borderPart = nameLower.replace('border_city_', '');
       const parts = borderPart.split('_');
-      // City name is usually the last part
-      const cityName = parts[parts.length - 1] || borderPart;
-      // Store in array (multiple borders per city possible)
-      const existing = index.cityToBorder.get(cityName) || [];
-      existing.push(mesh);
-      index.cityToBorder.set(cityName, existing);
+      const lastPart = parts[parts.length - 1];
+      const hasNumericId = /^\d+$/.test(lastPart);
+
+      let cityNameFull = '';
+      let cityNameShort = '';
+
+      // Simple format: border_city_{CityName}_{ID} (subdiv_7)
+      if (hasNumericId && parts.length === 2) {
+        cityNameFull = parts[0];
+        cityNameShort = parts[0];
+      }
+      // Complex format: border_city_{Country}_{CityName}_{ID} (subdiv_6)
+      else if (hasNumericId && parts.length >= 3) {
+        // All parts except first (country) and last (ID)
+        cityNameFull = parts.slice(1, -1).join('_');
+        // Just second-to-last part (single word city)
+        cityNameShort = parts[parts.length - 2];
+      }
+      // Fallback
+      else {
+        cityNameFull = borderPart;
+        cityNameShort = parts[parts.length - 1] || borderPart;
+      }
+
+      // Store under both names for flexible matching
+      if (cityNameFull) {
+        const existing1 = index.cityToBorder.get(cityNameFull) || [];
+        existing1.push(mesh);
+        index.cityToBorder.set(cityNameFull, existing1);
+      }
+
+      // Also store under short name if different
+      if (cityNameShort && cityNameShort !== cityNameFull) {
+        const existing2 = index.cityToBorder.get(cityNameShort) || [];
+        existing2.push(mesh);
+        index.cityToBorder.set(cityNameShort, existing2);
+      }
       // Store original state for border animation
       const center = getMeshCenter(mesh);
       const radialDir = center.clone().normalize();
@@ -136,6 +169,10 @@ export function buildGlobeIndex(model: THREE.Object3D): GlobeIndex {
 
     // City meshes
     if (nameLower.startsWith('city_')) {
+      // DEBUG: Log first city mesh found
+      if (index.allCityMeshes.length === 0) {
+        console.warn('[GlobeRenderer] FIRST CITY MESH:', nameLower);
+      }
       index.allCityMeshes.push(mesh);
       const parts = nameLower.replace('city_', '').split('_');
       if (parts.length >= 3) {
@@ -154,6 +191,15 @@ export function buildGlobeIndex(model: THREE.Object3D): GlobeIndex {
         radialDirection: radialDir,
       });
     }
+  });
+
+  // DEBUG: Log index counts
+  console.warn('[GlobeRenderer] indexModel complete:', {
+    countries: index.allCountryMeshes.length,
+    borders: index.allBorderMeshes.length,
+    cities: index.allCityMeshes.length,
+    cityBorders: index.allCityBorderMeshes.length,
+    globeMesh: !!index.globeMesh,
   });
 
   return index;
@@ -496,6 +542,8 @@ export interface DataHighlightState {
   intensity: number;
   color: string;
   startTime: number;
+  /** Custom extrusion level (0-1), defaults to intensity */
+  extrusion?: number;
 }
 
 /** City highlight state for animation */
@@ -505,6 +553,8 @@ export interface CityHighlightState {
   intensity: number;
   color: string;
   startTime: number;
+  /** Custom extrusion level (0-1), defaults to intensity */
+  extrusion?: number;
 }
 
 /**
@@ -536,8 +586,10 @@ export function animateDataHighlights(
     const breathingSpeed = 1.5 + data.intensity * 0.5;
     const breathingPulse = 0.85 + 0.15 * Math.sin(time * breathingSpeed);
 
-    // Radial displacement - move country outward from globe center
-    const baseDisplacement = data.intensity * 0.06;
+    // Radial displacement - move country outward based on extrusion value (or intensity as fallback)
+    // Extrusion allows data-driven displacement independent of visual intensity
+    const extrusionValue = data.extrusion ?? data.intensity;
+    const baseDisplacement = extrusionValue * 0.06;
     const animatedDisplacement = baseDisplacement * entryEase * breathingPulse;
 
     // Apply position offset along radial direction
@@ -605,14 +657,20 @@ export function animateCityHighlights(
     const animatedScale = CITY_BASE_SCALE * (1 + (highlightScale - 1) * entryEase * breathingPulse);
     data.mesh.scale.copy(originalState.scale).multiplyScalar(animatedScale);
 
-    // Radial displacement - cities pop out slightly on top of base offset
-    const highlightDisplacement = data.intensity * 0.03;
+    // Radial displacement - cities pop out based on extrusion value (or intensity as fallback)
+    // Extrusion allows data-driven displacement independent of visual intensity
+    const extrusionValue = data.extrusion ?? data.intensity;
+    const highlightDisplacement = extrusionValue * 0.05; // Max 0.05 extrusion
     const animatedDisplacement = CITY_BASE_OFFSET + highlightDisplacement * entryEase * breathingPulse;
     data.mesh.position.copy(originalState.position)
       .addScaledVector(originalState.radialDirection, animatedDisplacement);
 
-    // Emissive intensity pulse
-    const baseEmissive = 0.4 + data.intensity * 0.5;
+    // Color the city mesh based on intensity (like countries)
+    mat.color.set(data.color);
+    mat.emissive.set(data.color);
+
+    // Emissive intensity pulse - stronger for cities to stand out
+    const baseEmissive = 0.5 + data.intensity * 0.6;
     mat.emissiveIntensity = baseEmissive * breathingPulse * (0.5 + entryProgress * 0.5);
 
     // Animate city borders with same displacement (already includes base offset)
@@ -629,7 +687,8 @@ export function animateCityHighlights(
       if (borderMat.isMeshStandardMaterial) {
         borderMat.color.set(data.color);
         borderMat.emissive.set(data.color);
-        borderMat.emissiveIntensity = glowIntensity * (1.2 + data.intensity) * breathingPulse;
+        // Match country border intensity (1.5 + intensity)
+        borderMat.emissiveIntensity = glowIntensity * (1.5 + data.intensity) * breathingPulse;
       }
     }
   }

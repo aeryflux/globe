@@ -23,8 +23,11 @@ import {
   animateGlobeRotation,
   animateBorderPulse,
   animateDataHighlights,
+  animateCityHighlights,
   resetAllCountries,
+  resetAllCities,
   type DataHighlightState,
+  type CityHighlightState,
 } from '../core/GlobeRenderer';
 import { checkWebGLSupport } from '../core/webgl';
 import { GlobeFallback } from './GlobeFallback';
@@ -36,8 +39,10 @@ export interface GlobeProps extends GlobeConfig {
   modelUrl?: string;
   /** Show fallback message when WebGL unavailable */
   showFallbackMessage?: boolean;
-  /** Country data for highlighting (scale 0-1, optional color) */
-  countryData?: Record<string, { scale: number; color?: string }>;
+  /** Country data for highlighting (scale 0-1, optional color, optional extrusion) */
+  countryData?: Record<string, { scale: number; color?: string; extrusion?: number }>;
+  /** City data for highlighting (scale 0-1, optional color, optional extrusion) */
+  cityData?: Record<string, { scale: number; color?: string; extrusion?: number }>;
   /** Color for data highlights (default: accent color) */
   dataHighlightColor?: string;
 }
@@ -48,6 +53,7 @@ export function Globe({
   modelUrl,
   showFallbackMessage = false,
   countryData,
+  cityData,
   dataHighlightColor,
   ...config
 }: GlobeProps) {
@@ -66,6 +72,7 @@ export function Globe({
     animationId: number | null;
     time: number;
     highlights: Map<string, DataHighlightState>;
+    cityHighlights: Map<string, CityHighlightState>;
   } | null>(null);
 
   // Memoize colors to prevent unnecessary effect triggers
@@ -102,13 +109,25 @@ export function Globe({
       .join('|');
   }, [countryData]);
 
+  // Create stable key for cityData to detect actual changes
+  const cityDataKey = useMemo(() => {
+    if (!cityData) return '';
+    return Object.entries(cityData)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${k}:${v.scale}:${v.color || ''}`)
+      .join('|');
+  }, [cityData]);
+
   // Track previous data key to detect real changes
   const prevDataKeyRef = useRef<string>('');
+  const prevCityDataKeyRef = useRef<string>('');
 
   // Refs for values used in effects to avoid dependency issues
   const countryDataRef = useRef(countryData);
+  const cityDataRef = useRef(cityData);
   const configRef = useRef(config);
   countryDataRef.current = countryData;
+  cityDataRef.current = cityData;
   configRef.current = config;
 
   // Check WebGL support on mount
@@ -218,6 +237,7 @@ export function Globe({
       animationId: null,
       time: 0,
       highlights: new Map(),
+      cityHighlights: new Map(),
     };
 
     // Load model
@@ -270,6 +290,10 @@ export function Globe({
         // Animate data highlights if any
         if (sceneRef.current.highlights.size > 0) {
           animateDataHighlights(sceneRef.current.index, sceneRef.current.highlights, t, glowIntensityRef.current);
+        }
+        // Animate city highlights if any
+        if (sceneRef.current.cityHighlights.size > 0) {
+          animateCityHighlights(sceneRef.current.index, sceneRef.current.cityHighlights, t, glowIntensityRef.current);
         }
       }
 
@@ -350,13 +374,67 @@ export function Globe({
     const highlightColor = dataHighlightColor || colors.accent;
     const newHighlights = new Map<string, DataHighlightState>();
 
+    // Country name aliases (bidirectional: API name <-> mesh name variations)
+    // Mesh names in GLB are like "country_United Kingdom_0" -> normalized to "united_kingdom"
+    // Data might have "uk", "south korea", etc. - need to map to mesh names
+    const countryAliases: Record<string, string[]> = {
+      // Full names -> abbreviations
+      'south_korea': ['republic_of_korea', 'korea_south', 'korea'],
+      'north_korea': ['democratic_people\'s_republic_of_korea', 'korea_north'],
+      'united_arab_emirates': ['uae', 'u.a.e.'],
+      'united_kingdom': ['uk', 'great_britain', 'britain'],
+      'united_states': ['usa', 'united_states_of_america', 'us'],
+      'united_states_of_america': ['usa', 'united_states', 'us', 'america'],
+      'saudi_arabia': ['kingdom_of_saudi_arabia', 'ksa'],
+      'south_africa': ['republic_of_south_africa', 'rsa'],
+      'new_zealand': ['nz'],
+      'sri_lanka': ['ceylon'],
+      'ivory_coast': ['cote_d\'ivoire', 'côte_d\'ivoire'],
+      'czech_republic': ['czechia'],
+      'democratic_republic_of_the_congo': ['drc', 'dr_congo', 'congo_kinshasa'],
+      'republic_of_the_congo': ['congo_brazzaville', 'congo'],
+      // Reverse: abbreviations -> full names (for matching mesh names)
+      'uk': ['united_kingdom', 'great_britain'],
+      'uae': ['united_arab_emirates'],
+      'usa': ['united_states', 'united_states_of_america'],
+      'korea': ['south_korea', 'republic_of_korea'],
+      'congo': ['republic_of_the_congo', 'democratic_republic_of_the_congo'],
+      'drc': ['democratic_republic_of_the_congo'],
+      'czechia': ['czech_republic'],
+      'hong_kong': ['hong_kong_s.a.r.', 'hongkong'],
+      'russia': ['russian_federation'],
+      'russian_federation': ['russia'],
+      'taiwan': ['chinese_taipei', 'republic_of_china'],
+      'vietnam': ['viet_nam'],
+      'iran': ['islamic_republic_of_iran'],
+      'syria': ['syrian_arab_republic'],
+      'laos': ['lao_people\'s_democratic_republic'],
+      'tanzania': ['united_republic_of_tanzania'],
+      'venezuela': ['bolivarian_republic_of_venezuela'],
+      'bolivia': ['plurinational_state_of_bolivia'],
+    };
+
     // Build country name lookup (lowercase, normalized)
     const countryDataMap = new Map<string, { scale: number; color?: string }>();
     for (const [name, data] of Object.entries(currentCountryData)) {
-      countryDataMap.set(name.toLowerCase().replace(/\s+/g, '_'), data);
-      countryDataMap.set(name.toLowerCase().replace(/\s+/g, ''), data);
-      countryDataMap.set(name.toLowerCase(), data);
+      const normalized = name.toLowerCase().replace(/\s+/g, '_');
+      const noSpaces = name.toLowerCase().replace(/\s+/g, '');
+      const withSpaces = name.toLowerCase();
+
+      countryDataMap.set(normalized, data);
+      countryDataMap.set(noSpaces, data);
+      countryDataMap.set(withSpaces, data);
+
+      // Also add aliases for this country
+      if (countryAliases[normalized]) {
+        for (const alias of countryAliases[normalized]) {
+          countryDataMap.set(alias, data);
+        }
+      }
     }
+
+    // Track matched countries to find unmatched ones
+    const matchedCountries = new Set<string>();
 
     // Match countries to meshes
     for (const mesh of index.allCountryMeshes) {
@@ -374,6 +452,7 @@ export function Globe({
 
       const matchedData = countryDataMap.get(countryName) || countryDataMap.get(countryName.replace(/_/g, ''));
       if (matchedData) {
+        matchedCountries.add(countryName);
         // Find border meshes (array)
         const borderMeshes = index.countryToBorder.get(countryName) || [];
 
@@ -387,6 +466,14 @@ export function Globe({
       }
     }
 
+    // Log unmatched countries (those in data but not found in meshes)
+    const requestedCountries = [...countryDataMap.keys()];
+    const unmatchedCountries = requestedCountries.filter(c => !matchedCountries.has(c) && !matchedCountries.has(c.replace(/_/g, '')));
+    if (unmatchedCountries.length > 0) {
+      console.log('[Globe] Unmatched countries:', unmatchedCountries.slice(0, 20));
+    }
+    console.log('[Globe] Countries: matched', matchedCountries.size, '/', requestedCountries.length);
+
     sceneRef.current.highlights = newHighlights;
 
     // Apply materials (positions handled by animateDataHighlights)
@@ -399,6 +486,208 @@ export function Globe({
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps -- countryDataKey is the stable dependency
   }, [countryDataKey, dataHighlightColor, colors, showCountries, showCities]);
+
+  // Build city highlights when cityData actually changes (using stable key comparison)
+  useEffect(() => {
+    console.error('>>> CITY EFFECT START', { hasScene: !!sceneRef.current, hasIndex: !!sceneRef.current?.index });
+    if (!sceneRef.current?.index) return;
+
+    // Skip if data hasn't actually changed
+    const isNewData = cityDataKey !== prevCityDataKeyRef.current;
+    if (!isNewData && sceneRef.current.cityHighlights.size > 0) {
+      return;
+    }
+    prevCityDataKeyRef.current = cityDataKey;
+
+    const { index, time } = sceneRef.current;
+    const currentCityData = cityDataRef.current;
+
+    // Reset all city positions first (smooth transition)
+    resetAllCities(index);
+    sceneRef.current.cityHighlights.clear();
+
+    // If no city data, just return
+    if (!currentCityData || Object.keys(currentCityData).length === 0) {
+      return;
+    }
+
+    const highlightColor = dataHighlightColor || colors.accent;
+    const newCityHighlights = new Map<string, CityHighlightState>();
+
+    // Helper to remove accents for matching
+    const removeAccents = (str: string) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+    // City name aliases (bidirectional: API name <-> mesh name variations)
+    // GLB mesh names use Natural Earth format: city_{Country}_{CityName}_{ID}
+    const cityAliases: Record<string, string[]> = {
+      // Common variations and abbreviations
+      'new_york': ['newyork', 'new_york_city', 'nyc'],
+      'los_angeles': ['losangeles', 'la'],
+      'san_francisco': ['sanfrancisco', 'sf'],
+      'hong_kong': ['hongkong', 'hong_kong_s.a.r.'],
+      'tel_aviv': ['telaviv', 'tel_aviv-yafo', 'tel_aviv_yafo'],
+      'sao_paulo': ['são_paulo', 'saopaulo'],
+      'são_paulo': ['sao_paulo', 'saopaulo'],  // Reverse: GLB has accented version
+      'rio_de_janeiro': ['riodejaneiro', 'rio'],
+      'mexico_city': ['mexicocity', 'ciudad_de_mexico', 'cdmx'],
+      'buenos_aires': ['buenosaires'],
+      'kyiv': ['kiev'],  // GLB uses 'Kiev'
+      'kiev': ['kyiv'],  // Reverse
+      'montreal': ['montréal', 'montr'],
+      'montréal': ['montreal'],  // Reverse: GLB has accented version
+      'copenhagen': ['københavn', 'kobenhavn'],
+      'københavn': ['copenhagen', 'kobenhavn'],  // Reverse
+      'brasília': ['brasilia'],
+      'brasilia': ['brasília'],  // Reverse
+      'goiânia': ['goiania'],
+      'singapore': ['singapore_city'],
+      'dubai': ['dubayy'],
+      'seoul': ['soul', 'sŏul'],
+      'tokyo': ['tōkyō', 'tokio'],
+      'osaka': ['ōsaka'],
+      'beijing': ['peking'],
+      'mumbai': ['bombay'],
+      'kolkata': ['calcutta'],
+      'chennai': ['madras'],
+      'ho_chi_minh': ['ho_chi_minh_city', 'saigon'],
+      'ho_chi_minh_city': ['ho_chi_minh', 'saigon'],
+      'kuala_lumpur': ['kl'],
+      'prague': ['praha'],
+      'warsaw': ['warszawa'],
+      'vienna': ['wien'],
+      'munich': ['münchen', 'munchen'],
+      'cologne': ['köln', 'koln'],
+      'brussels': ['bruxelles', 'brussel'],
+      'athens': ['athina', 'αθήνα'],
+      'cairo': ['al_qahirah', 'القاهرة'],
+      'riyadh': ['ar_riyad', 'الرياض'],
+    };
+
+    // Build city name lookup (lowercase, normalized, no accents)
+    const cityDataMap = new Map<string, { scale: number; color?: string; extrusion?: number }>();
+    for (const [name, data] of Object.entries(currentCityData)) {
+      const lower = name.toLowerCase();
+      const noAccents = removeAccents(lower);
+      const normalized = lower.replace(/\s+/g, '_');
+
+      cityDataMap.set(normalized, data);
+      cityDataMap.set(lower.replace(/\s+/g, ''), data);
+      cityDataMap.set(lower, data);
+
+      // Add aliases for this city
+      if (cityAliases[normalized]) {
+        for (const alias of cityAliases[normalized]) {
+          cityDataMap.set(alias, data);
+          cityDataMap.set(removeAccents(alias), data);
+        }
+      }
+
+      // Also add version without accents
+      cityDataMap.set(noAccents.replace(/\s+/g, '_'), data);
+      cityDataMap.set(noAccents.replace(/\s+/g, ''), data);
+      cityDataMap.set(noAccents, data);
+    }
+
+    // Track matched cities to find unmatched ones
+    const matchedCities = new Set<string>();
+
+
+    for (const mesh of index.allCityMeshes) {
+      const meshName = mesh.name.toLowerCase();
+      const cityPart = meshName.replace('city_', '');
+      const parts = cityPart.split('_');
+      // Pattern: city_{Country}_{CityName}_{ID}
+      // Last part is numeric ID, rest is country + city name
+      // Try matching from the end backwards to handle multi-word country names
+      const lastPart = parts[parts.length - 1];
+      const hasNumericId = /^\d+$/.test(lastPart);
+
+      // Try multiple extraction strategies
+      // subdiv_7 uses: city_{CityName}_{ID} (e.g., city_Paris_19)
+      // subdiv_6 uses: city_{Country}_{CityName}_{ID} (e.g., city_France_Paris_123)
+      let matchedData = null;
+      let matchedCityName = '';
+
+      // Helper to try matching a city name with accent removal fallback
+      const tryMatch = (name: string) => {
+        let data = cityDataMap.get(name);
+        if (!data) data = cityDataMap.get(removeAccents(name));
+        return data;
+      };
+
+      // Strategy 0 (hex format): city_{Country}_{CityName}_{ID}
+      // Example: city_Brazil_São_Paulo_4 -> parts: ['brazil', 'são', 'paulo', '4']
+      // Try parts except first (country) and last (ID) to get city name
+      if (hasNumericId && parts.length >= 3) {
+        const cityName = parts.slice(1, -1).join('_'); // Skip country, skip ID
+        matchedData = tryMatch(cityName);
+        if (matchedData) matchedCityName = cityName;
+      }
+
+      // Strategy 1: City name is second-to-last part (single word city)
+      // Example: city_France_Paris_123 -> parts: ['france', 'paris', '123'] -> 'paris'
+      if (!matchedData && hasNumericId && parts.length >= 3) {
+        const cityName = parts[parts.length - 2];
+        matchedData = tryMatch(cityName);
+        if (matchedData) matchedCityName = cityName;
+      }
+
+      // Strategy 2: Try last two parts joined (multi-word cities)
+      // Example: city_Brazil_Rio_de_Janeiro_13 -> parts: ['brazil', 'rio', 'de', 'janeiro', '13']
+      // Try 'de_janeiro' first, then 'rio_de_janeiro'
+      if (!matchedData && hasNumericId && parts.length >= 4) {
+        const cityName = parts.slice(-3, -1).join('_');
+        matchedData = tryMatch(cityName);
+        if (matchedData) matchedCityName = cityName;
+      }
+
+      // Strategy 3 (subdiv_7 format): city_{CityName}_{ID}
+      // Example: city_paris_19 -> parts: ['paris', '19']
+      // Join all parts except the last (ID) to get the full city name
+      if (!matchedData && hasNumericId && parts.length >= 2) {
+        const cityName = parts.slice(0, -1).join('_'); // All parts except last (ID)
+        matchedData = tryMatch(cityName);
+        if (matchedData) matchedCityName = cityName;
+      }
+
+      // Strategy 4: Try full cityPart (legacy fallback)
+      if (!matchedData) {
+        matchedData = tryMatch(cityPart);
+        if (matchedData) matchedCityName = cityPart;
+      }
+
+      const cityName = matchedCityName || (hasNumericId ? parts[parts.length - 2] : parts[parts.length - 1]) || cityPart;
+      if (matchedData) {
+        matchedCities.add(matchedCityName);
+        // Find city border meshes - try multiple name formats
+        let borderMeshes = index.cityToBorder.get(cityName) || [];
+        if (borderMeshes.length === 0) {
+          // Try with full city part (e.g., france_paris)
+          borderMeshes = index.cityToBorder.get(cityPart) || [];
+        }
+
+        newCityHighlights.set(mesh.name, {
+          mesh,
+          borderMeshes,
+          intensity: matchedData.scale,
+          color: matchedData.color || highlightColor,
+          startTime: time,
+          extrusion: matchedData.extrusion,
+        });
+      }
+    }
+
+    // Debug log for development (minimal) - always log for now to debug matching
+    const requestedCities = Object.keys(currentCityData);
+    const unmatchedCities = requestedCities.filter(c => !matchedCities.has(c.toLowerCase()) && !matchedCities.has(c.toLowerCase().replace(/\s+/g, '_')));
+    if (unmatchedCities.length > 0) {
+      console.log('[Globe] Unmatched cities:', unmatchedCities);
+    }
+    console.log('[Globe] Cities matched:', matchedCities.size, '/', requestedCities.length);
+
+    sceneRef.current.cityHighlights = newCityHighlights;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- cityDataKey is the stable dependency
+  }, [cityDataKey, dataHighlightColor, colors]);
 
   // Show fallback if WebGL not supported
   if (webglError) {

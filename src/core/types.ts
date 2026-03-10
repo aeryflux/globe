@@ -18,6 +18,8 @@ export interface CountryHighlight {
   lat?: number | null;
   /** Optional longitude for positioning */
   lon?: number | null;
+  /** Extrusion level (0-1) for data-driven displacement (defaults to scale) */
+  extrusion?: number;
 }
 
 /** Map of country names to highlight data */
@@ -31,6 +33,8 @@ export interface CityHighlight {
   color?: string;
   /** City name for display */
   name?: string;
+  /** Extrusion level (0-1) for data-driven displacement (defaults to scale) */
+  extrusion?: number;
 }
 
 /** Map of city IDs to highlight data */
