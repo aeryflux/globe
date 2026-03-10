@@ -45,6 +45,8 @@ export interface GlobeProps extends GlobeConfig {
   cityData?: Record<string, { scale: number; color?: string; extrusion?: number }>;
   /** Color for data highlights (default: accent color) */
   dataHighlightColor?: string;
+  /** Enable debug logging (default: false) */
+  debug?: boolean;
 }
 
 export function Globe({
@@ -55,8 +57,12 @@ export function Globe({
   countryData,
   cityData,
   dataHighlightColor,
+  debug = false,
   ...config
 }: GlobeProps) {
+  // Debug logging helper - only logs when debug prop is true
+  const debugLog = (...args: unknown[]) => { if (debug) console.log('[Globe]', ...args); };
+  const debugWarn = (...args: unknown[]) => { if (debug) console.warn('[Globe]', ...args); };
   const containerRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [webglError, setWebglError] = useState(false);
@@ -159,13 +165,13 @@ export function Globe({
         alpha: true,
       });
     } catch (e) {
-      console.error('[Globe] WebGL context creation failed:', e);
+      debugWarn('WebGL context creation failed:', e);
       setWebglError(true);
       return;
     }
 
     if (renderer.getContext().isContextLost()) {
-      console.error('[Globe] WebGL context lost');
+      debugWarn('WebGL context lost');
       renderer.dispose();
       setWebglError(true);
       return;
@@ -262,7 +268,7 @@ export function Globe({
       },
       undefined,
       (error) => {
-        console.error('[Globe] Failed to load model:', error);
+        debugWarn('Failed to load model:', error);
         setIsLoading(false);
       }
     );
@@ -470,9 +476,9 @@ export function Globe({
     const requestedCountries = [...countryDataMap.keys()];
     const unmatchedCountries = requestedCountries.filter(c => !matchedCountries.has(c) && !matchedCountries.has(c.replace(/_/g, '')));
     if (unmatchedCountries.length > 0) {
-      console.log('[Globe] Unmatched countries:', unmatchedCountries.slice(0, 20));
+      debugLog('Unmatched countries:', unmatchedCountries.slice(0, 20));
     }
-    console.log('[Globe] Countries: matched', matchedCountries.size, '/', requestedCountries.length);
+    debugLog('Countries: matched', matchedCountries.size, '/', requestedCountries.length);
 
     sceneRef.current.highlights = newHighlights;
 
@@ -489,7 +495,7 @@ export function Globe({
 
   // Build city highlights when cityData actually changes (using stable key comparison)
   useEffect(() => {
-    console.error('>>> CITY EFFECT START', { hasScene: !!sceneRef.current, hasIndex: !!sceneRef.current?.index });
+    debugLog('City effect start', { hasScene: !!sceneRef.current, hasIndex: !!sceneRef.current?.index });
     if (!sceneRef.current?.index) return;
 
     // Skip if data hasn't actually changed
@@ -677,13 +683,13 @@ export function Globe({
       }
     }
 
-    // Debug log for development (minimal) - always log for now to debug matching
+    // Debug log for development (minimal)
     const requestedCities = Object.keys(currentCityData);
     const unmatchedCities = requestedCities.filter(c => !matchedCities.has(c.toLowerCase()) && !matchedCities.has(c.toLowerCase().replace(/\s+/g, '_')));
     if (unmatchedCities.length > 0) {
-      console.log('[Globe] Unmatched cities:', unmatchedCities);
+      debugLog('Unmatched cities:', unmatchedCities);
     }
-    console.log('[Globe] Cities matched:', matchedCities.size, '/', requestedCities.length);
+    debugLog('Cities matched:', matchedCities.size, '/', requestedCities.length);
 
     sceneRef.current.cityHighlights = newCityHighlights;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- cityDataKey is the stable dependency
