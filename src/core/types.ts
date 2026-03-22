@@ -142,12 +142,12 @@ export type SubdivisionLevel = 3 | 5 | 6 | 7;
 
 /** Available globe models */
 export const GLOBE_MODELS = {
-  /** Mobile-optimized hex globe */
+  /** Mobile-optimized hex globe (2MB) */
   ATLAS_HEX_5: 'atlas_hex_subdiv_5.glb',
-  /** Desktop hex globe */
+  /** Desktop hex globe (7MB) */
   ATLAS_HEX_6: 'atlas_hex_subdiv_6.glb',
+  /** High quality hex globe (20MB) */
+  ATLAS_HEX_7: 'atlas_hex_subdiv_7.glb',
   /** Mobile weather globe */
   WEATHER_HEX_3: 'weather_hex_globe_subdiv_3.glb',
-  /** Desktop weather globe */
-  WEATHER_HEX_5: 'weather_hex_globe_subdiv_5.glb',
 } as const;

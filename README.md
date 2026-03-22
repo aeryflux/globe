@@ -73,10 +73,11 @@ import { Renderer } from 'expo-three';
 | Model | Size | Use Case |
 |-------|------|----------|
 | `atlas_hex_subdiv_5.glb` | 2MB | Mobile |
-| `atlas_hex_subdiv_6.glb` | 7.2MB | Desktop (with cities) |
+| `atlas_hex_subdiv_6.glb` | 7MB | Desktop |
+| `atlas_hex_subdiv_7.glb` | 20MB | High quality (default) |
 | `weather_hex_globe_subdiv_3.glb` | 212KB | Weather overlay |
 
-Desktop model includes 185 major cities with hexagonal borders centered in hex cells.
+Default model is `atlas_hex_subdiv_7.glb` with highest detail. Use `modelUrl` prop for smaller models on mobile.
 
 ## Data Visualization
 

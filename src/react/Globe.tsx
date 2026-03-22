@@ -35,7 +35,7 @@ import { GlobeFallback } from './GlobeFallback';
 export interface GlobeProps extends GlobeConfig {
   className?: string;
   style?: CSSProperties;
-  /** Model URL (default: bundled atlas_hex_subdiv_6.glb) */
+  /** Model URL (default: bundled atlas_hex_subdiv_7.glb) */
   modelUrl?: string;
   /** Show fallback message when WebGL unavailable */
   showFallbackMessage?: boolean;
@@ -248,7 +248,7 @@ export function Globe({
 
     // Load model
     const loader = new GLTFLoader();
-    const finalModelUrl = modelUrl || new URL('../models/atlas_hex_subdiv_6.glb', import.meta.url).href;
+    const finalModelUrl = modelUrl || new URL('../models/atlas_hex_subdiv_7.glb', import.meta.url).href;
 
     loader.load(
       finalModelUrl,
