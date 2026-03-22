@@ -16,7 +16,7 @@ Portable 3D globe component for React and React Native (Expo).
 - **Data visualization**: Highlight countries with custom colors
 - **City markers**: 185 major cities with hexagonal borders
 - **WebGL fallback**: Graceful degradation when WebGL unavailable
-- **Bundled models**: Pre-generated GLB files with 169 countries and 185 cities
+- **CDN-served models**: Pre-generated GLB files with 169 countries and 185 cities
 
 ## Installation
 
@@ -51,8 +51,8 @@ import { buildGlobeIndex, applyGlobeMaterials } from '@aeryflux/globe/react-nati
 import { GLView } from 'expo-gl';
 import { Renderer } from 'expo-three';
 
-// See documentation for full Expo implementation
-// Reference: Atlas GlobeBackground.tsx
+// Full Expo implementation requires manual Three.js setup
+// See expo-three documentation for GLView configuration
 ```
 
 ## Props
@@ -61,14 +61,21 @@ import { Renderer } from 'expo-three';
 |------|------|---------|-------------|
 | `surface` | `'dark' \| 'green' \| 'white'` | `'green'` | Color theme |
 | `showCountries` | `boolean` | `false` | Show country fills |
-| `showCities` | `boolean` | `false` | Show city markers with borders |
-| `rotationSpeed` | `number` | `0.0003` | Globe rotation speed |
-| `glowIntensity` | `number` | `0.5` | Border glow intensity |
-| `bloomStrength` | `number` | `0.3` | Post-processing bloom |
-| `countryData` | `CountryDataMap` | - | Data-driven highlights |
-| `modelUrl` | `string` | bundled | Custom GLB model URL |
+| `showCities` | `boolean` | `false` | Show city markers |
+| `countryData` | `Record<string, DataPoint>` | - | Country highlight data |
+| `cityData` | `Record<string, DataPoint>` | - | City highlight data |
+| `dataHighlightColor` | `string` | accent | Default highlight color |
+| `rotationSpeed` | `number` | `0.0003` | Auto-rotation speed |
+| `glowIntensity` | `number` | `1.2` | Border glow intensity |
+| `bloomStrength` | `number` | `1.0` | Post-processing bloom |
+| `enableControls` | `boolean` | `false` | Enable orbit controls |
+| `modelUrl` | `string` | CDN | Custom GLB model URL |
 
-## Bundled Models
+`DataPoint`: `{ scale: number; color?: string; extrusion?: number }`
+
+## Models
+
+Models are served from jsDelivr CDN by default for optimal performance in production builds.
 
 | Model | Size | Use Case |
 |-------|------|----------|
@@ -77,7 +84,15 @@ import { Renderer } from 'expo-three';
 | `atlas_hex_subdiv_7.glb` | 20MB | High quality (default) |
 | `weather_hex_globe_subdiv_3.glb` | 212KB | Weather overlay |
 
-Default model is `atlas_hex_subdiv_7.glb` with highest detail. Use `modelUrl` prop for smaller models on mobile.
+Default model is `atlas_hex_subdiv_7.glb` served from `cdn.jsdelivr.net`. Use `modelUrl` prop for custom models:
+
+```tsx
+// Use a smaller model for mobile
+<Globe modelUrl="https://cdn.jsdelivr.net/npm/@aeryflux/globe@0.6.4/models/atlas_hex_subdiv_5.glb" />
+
+// Self-host models (copy to your public folder)
+<Globe modelUrl="/models/atlas_hex_subdiv_7.glb" />
+```
 
 ## Data Visualization
 

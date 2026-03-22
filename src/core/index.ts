@@ -7,3 +7,4 @@
 export * from './types';
 export * from './GlobeRenderer';
 export * from './webgl';
+export * from './constants';

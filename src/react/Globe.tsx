@@ -14,6 +14,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 
 import type { GlobeConfig, GlobeIndex } from '../core/types';
+import { GLOBE_CDN_MODEL_URL } from '../core/constants';
 import {
   buildGlobeIndex,
   getSurfaceColors,
@@ -248,7 +249,7 @@ export function Globe({
 
     // Load model
     const loader = new GLTFLoader();
-    const finalModelUrl = modelUrl || new URL('../models/atlas_hex_subdiv_7.glb', import.meta.url).href;
+    const finalModelUrl = modelUrl || GLOBE_CDN_MODEL_URL;
 
     loader.load(
       finalModelUrl,
