@@ -1,8 +1,12 @@
 # @aeryflux/globe
 
+[![npm version](https://img.shields.io/npm/v/@aeryflux/globe.svg)](https://www.npmjs.com/package/@aeryflux/globe)
+[![npm downloads](https://img.shields.io/npm/dm/@aeryflux/globe.svg)](https://www.npmjs.com/package/@aeryflux/globe)
+![License](https://img.shields.io/badge/license-MIT-green.svg)
+
 Portable 3D globe component for React and React Native (Expo).
 
-**[Live Demo](https://aeryflux.github.io/globe-demo/)**
+**[Live Demo](https://aeryflux.github.io/globe-demo/)** | **[npm](https://www.npmjs.com/package/@aeryflux/globe)**
 
 ## Features
 
