@@ -169,10 +169,6 @@ export function buildGlobeIndex(model: THREE.Object3D): GlobeIndex {
 
     // City meshes
     if (nameLower.startsWith('city_')) {
-      // DEBUG: Log first city mesh found
-      if (index.allCityMeshes.length === 0) {
-        console.warn('[GlobeRenderer] FIRST CITY MESH:', nameLower);
-      }
       index.allCityMeshes.push(mesh);
       const parts = nameLower.replace('city_', '').split('_');
       if (parts.length >= 3) {
@@ -193,14 +189,6 @@ export function buildGlobeIndex(model: THREE.Object3D): GlobeIndex {
     }
   });
 
-  // DEBUG: Log index counts
-  console.warn('[GlobeRenderer] indexModel complete:', {
-    countries: index.allCountryMeshes.length,
-    borders: index.allBorderMeshes.length,
-    cities: index.allCityMeshes.length,
-    cityBorders: index.allCityBorderMeshes.length,
-    globeMesh: !!index.globeMesh,
-  });
 
   return index;
 }
