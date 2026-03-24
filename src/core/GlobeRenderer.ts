@@ -612,8 +612,8 @@ export function animateDataHighlights(
 }
 
 /**
- * Animate city highlights with subtle pulse effect
- * Call this in your render loop for smooth animations
+ * Animate city highlights - data-driven, quasi-static like countries
+ * Only the entry is animated, then cities stay at their data-driven size/position
  */
 export function animateCityHighlights(
   index: GlobeIndex,
@@ -631,41 +631,35 @@ export function animateCityHighlights(
     // Time since this highlight started
     const timeSinceStart = time - data.startTime;
 
-    // Entry animation (0-0.3s): ease in
+    // Entry animation (0-0.5s): smooth ease in, then hold
     const entryDelay = (1 - data.intensity) * 0.2;
-    const entryProgress = Math.min(1, Math.max(0, (timeSinceStart - entryDelay) / 0.3));
+    const entryProgress = Math.min(1, Math.max(0, (timeSinceStart - entryDelay) / 0.5));
     const entryEase = 1 - Math.pow(1 - entryProgress, 3); // ease-out cubic
 
-    // Breathing pulse (continuous, faster than countries)
-    const breathingSpeed = 2.0 + data.intensity * 0.8;
-    const breathingPulse = 0.8 + 0.2 * Math.sin(time * breathingSpeed);
-
-    // Scale animation - cities grow slightly on top of base scale
-    const highlightScale = 1 + data.intensity * 0.3;
-    const animatedScale = CITY_BASE_SCALE * (1 + (highlightScale - 1) * entryEase * breathingPulse);
+    // Scale: data-driven, fixed after entry (intensity drives size differentiation)
+    const highlightScale = 1 + data.intensity * 0.5;
+    const animatedScale = CITY_BASE_SCALE * (1 + (highlightScale - 1) * entryEase);
     data.mesh.scale.copy(originalState.scale).multiplyScalar(animatedScale);
 
-    // Radial displacement - cities pop out based on extrusion value (or intensity as fallback)
-    // Extrusion allows data-driven displacement independent of visual intensity
+    // Radial displacement: data-driven, fixed after entry
     const extrusionValue = data.extrusion ?? data.intensity;
-    const highlightDisplacement = extrusionValue * 0.05; // Max 0.05 extrusion
-    const animatedDisplacement = CITY_BASE_OFFSET + highlightDisplacement * entryEase * breathingPulse;
+    const highlightDisplacement = extrusionValue * 0.05;
+    const animatedDisplacement = CITY_BASE_OFFSET + highlightDisplacement * entryEase;
     data.mesh.position.copy(originalState.position)
       .addScaledVector(originalState.radialDirection, animatedDisplacement);
 
-    // Color the city mesh based on intensity (like countries)
+    // Color from data
     mat.color.set(data.color);
     mat.emissive.set(data.color);
 
-    // Emissive intensity pulse - stronger for cities to stand out
-    const baseEmissive = 0.5 + data.intensity * 0.6;
-    mat.emissiveIntensity = baseEmissive * breathingPulse * (0.5 + entryProgress * 0.5);
+    // Steady emissive after entry (no pulse)
+    const baseEmissive = 0.3 + data.intensity * 0.4;
+    mat.emissiveIntensity = baseEmissive * entryEase;
 
-    // Animate city borders with same displacement (already includes base offset)
+    // City borders follow with same displacement
     for (const borderMesh of data.borderMeshes) {
       const borderOriginal = index.originalStates.get(borderMesh);
       if (borderOriginal) {
-        // Apply displacement using border's own radial direction (includes base offset)
         borderMesh.position.copy(borderOriginal.position)
           .addScaledVector(borderOriginal.radialDirection, animatedDisplacement);
         borderMesh.scale.copy(borderOriginal.scale);
@@ -675,8 +669,7 @@ export function animateCityHighlights(
       if (borderMat.isMeshStandardMaterial) {
         borderMat.color.set(data.color);
         borderMat.emissive.set(data.color);
-        // Match country border intensity (1.5 + intensity)
-        borderMat.emissiveIntensity = glowIntensity * (1.5 + data.intensity) * breathingPulse;
+        borderMat.emissiveIntensity = glowIntensity * (1.0 + data.intensity) * entryEase;
       }
     }
   }
