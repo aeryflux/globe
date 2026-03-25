@@ -1,0 +1,28 @@
+{
+  "generated_at": "2026-03-25T02:46:11Z",
+  "mode": "atlas",
+  "ico_subdiv": 3,
+  "hex_label": 3,
+  "radius": 1.0,
+  "total_cells": 162,
+  "pentagons": 12,
+  "hexagons": 150,
+  "assigned_cells": 56,
+  "ocean_cells": 106,
+  "countries": 31,
+  "extrusions": {
+    "above": 0.0,
+    "below": 0.5
+  },
+  "border": {
+    "width": 0.0006,
+    "height": 0.002,
+    "enabled": true
+  },
+  "cities": {
+    "enabled": false,
+    "count": 0,
+    "borders": 0,
+    "sides": 6
+  }
+}
