@@ -528,10 +528,13 @@ export function createGlobeCamera(width: number, height: number): THREE.Perspect
 export function animateGlobeRotation(
   model: THREE.Object3D,
   time: number,
-  rotationSpeed: number = 0.0003
+  rotationSpeed: number = 0.0003,
+  bass: number = 0,
+  energy: number = 0
 ): void {
-  model.rotation.y += rotationSpeed * 3;
-  model.rotation.x = Math.sin(time * 0.3) * 0.08;
+  // Base rotation + music boost
+  model.rotation.y += rotationSpeed * 3 + Math.pow(bass, 1.5) * 0.02 + energy * 0.003;
+  model.rotation.x = Math.sin(time * 0.3) * (0.08 + bass * 0.04);
   model.rotation.z = Math.sin(time * 0.2) * 0.03;
 }
 
@@ -566,15 +569,21 @@ export function animateAmbientWave(
   index: GlobeIndex,
   time: number,
   accentColor: string = '#00ff88',
-  intensity: number = 0.4
+  intensity: number = 0.4,
+  bass: number = 0,
+  energy: number = 0
 ): void {
+  // Speed scales with bass/energy for music reactivity
+  const speedMult = 1 + bass * 0.5 + energy * 0.3;
+  const intensityMult = 1 + bass * 1.5 + energy * 0.5;
+
   // Two rotating wave directions
-  const t = time * 0.04;
+  const t = time * 0.04 * speedMult;
   _waveDir1.set(Math.cos(t), 0.2, Math.sin(t)).normalize();
   _waveDir2.set(Math.sin(t * 0.7 + 2), 0.2, Math.cos(t * 0.7 + 2)).normalize();
 
-  const phase1 = (time * 0.1) % 1;
-  const phase2 = ((time * 0.07) + 0.5) % 1;
+  const phase1 = (time * 0.1 * speedMult) % 1;
+  const phase2 = ((time * 0.07 * speedMult) + 0.5) % 1;
   const front1 = -1 + phase1 * 2;
   const front2 = -1 + phase2 * 2;
   const waveWidth = 0.6;
@@ -610,13 +619,14 @@ export function animateAmbientWave(
     const combined = Math.min(1, i1 * 0.5 + i2 * 0.4 + breathe);
     const glow = combined * intensity;
 
-    // Apply wave glow to emissive
+    // Apply wave glow to emissive (boosted by music)
+    const colorBoost = combined * 0.3 * intensityMult;
     mat.emissive.setRGB(
-      aR * (0.05 + combined * 0.3),
-      aG * (0.05 + combined * 0.3),
-      aB * (0.05 + combined * 0.3)
+      aR * (0.05 + colorBoost),
+      aG * (0.05 + colorBoost),
+      aB * (0.05 + colorBoost)
     );
-    mat.emissiveIntensity = 0.1 + glow * 1.2;
+    mat.emissiveIntensity = 0.1 + glow * 1.2 * intensityMult;
   }
 
   // Border glow follows wave

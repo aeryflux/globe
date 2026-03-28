@@ -97,16 +97,28 @@ export function Globe({
     glowIntensity = 1.2,
     isLightTheme = false,
     forceTransparent = false,
-    showCountries = false,
+    showCountries = true,
     showCities = false,
     enableControls = false,
+    bass = 0,
+    mid = 0,
+    treble = 0,
+    energy = 0,
+    ambientColor,
+    ambientIntensity = 0.4,
   } = config;
 
   // Refs for animation loop (avoids recreating scene on prop changes)
   const rotationSpeedRef = useRef(rotationSpeed);
   const glowIntensityRef = useRef(glowIntensity);
+  const bassRef = useRef(bass);
+  const energyRef = useRef(energy);
+  const ambientIntensityRef = useRef(ambientIntensity);
   rotationSpeedRef.current = rotationSpeed;
   glowIntensityRef.current = glowIntensity;
+  bassRef.current = bass;
+  energyRef.current = energy;
+  ambientIntensityRef.current = ambientIntensity;
 
   // Create stable key for countryData to detect actual changes
   const countryDataKey = useMemo(() => {
@@ -291,11 +303,17 @@ export function Globe({
       if (sceneRef.current.model && sceneRef.current.index) {
         // Only auto-rotate if controls are not enabled (user controls rotation)
         if (!enableControls) {
-          animateGlobeRotation(sceneRef.current.model, t, rotationSpeedRef.current);
+          animateGlobeRotation(sceneRef.current.model, t, rotationSpeedRef.current, bassRef.current, energyRef.current);
         }
         // Ambient wave on idle countries (when no data highlights active)
         if (sceneRef.current.highlights.size === 0) {
-          animateAmbientWave(sceneRef.current.index, t, colors.accent, glowIntensityRef.current * 0.5);
+          animateAmbientWave(
+            sceneRef.current.index, t,
+            ambientColor || colors.accent,
+            ambientIntensityRef.current,
+            bassRef.current,
+            energyRef.current
+          );
         } else {
           animateBorderPulse(sceneRef.current.index, t, glowIntensityRef.current);
         }

@@ -34,6 +34,9 @@ const TOGGLES: Toggle[] = [
   { key: 'glowIntensity', label: 'Glow', icon: '✨', type: 'range', min: 0, max: 3, step: 0.1 },
   { key: 'rotationSpeed', label: 'Speed', icon: '🔄', type: 'range', min: 0, max: 0.005, step: 0.0001 },
   { key: 'bloomStrength', label: 'Bloom', icon: '💡', type: 'range', min: 0, max: 3, step: 0.1 },
+  { key: 'bass', label: 'Bass', icon: '🔊', type: 'range', min: 0, max: 1.5, step: 0.05 },
+  { key: 'energy', label: 'Energy', icon: '⚡', type: 'range', min: 0, max: 1, step: 0.05 },
+  { key: 'ambientIntensity', label: 'Ambient', icon: '🌊', type: 'range', min: 0, max: 2, step: 0.1 },
 ];
 
 const SURFACES = ['dark', 'green', 'white'] as const;

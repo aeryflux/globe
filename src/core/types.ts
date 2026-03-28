@@ -106,6 +106,24 @@ export interface GlobeConfig {
   isLightTheme?: boolean;
   /** Force transparent background */
   forceTransparent?: boolean;
+
+  // ── Dance Mode ──
+  /** Ambient wave accent color (default: surface accent) */
+  ambientColor?: string;
+  /** Ambient wave intensity (0-1, default: 0.4) */
+  ambientIntensity?: number;
+  /** Music reactivity: bass level (0-1.5) */
+  bass?: number;
+  /** Music reactivity: mid level (0-1) */
+  mid?: number;
+  /** Music reactivity: treble level (0-1) */
+  treble?: number;
+  /** Music reactivity: energy level (0-1) */
+  energy?: number;
+  /** Gradient top color */
+  gradientTop?: string;
+  /** Gradient bottom color */
+  gradientBottom?: string;
   /** Country data for data-driven visualization */
   countryData?: CountryDataMap;
   /** Accent color for data highlights */
