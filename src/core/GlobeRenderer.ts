@@ -454,6 +454,37 @@ export function applyGlobeMaterials(
  */
 export function createGlobeScene(colors: SurfaceColors): THREE.Scene {
   const scene = new THREE.Scene();
+  scene.background = null; // Gradient mesh handles background
+
+  // Fullscreen gradient background (top: dark, bottom: deep blue)
+  const bgGeometry = new THREE.PlaneGeometry(2, 2);
+  const bgMaterial = new THREE.ShaderMaterial({
+    depthWrite: false,
+    depthTest: false,
+    uniforms: {
+      colorTop: { value: new THREE.Color('#06060e') },
+      colorBottom: { value: new THREE.Color('#0e1430') },
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = vec4(position.xy, 0.9999, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 colorTop;
+      uniform vec3 colorBottom;
+      varying vec2 vUv;
+      void main() {
+        gl_FragColor = vec4(mix(colorBottom, colorTop, vUv.y), 1.0);
+      }
+    `,
+  });
+  const bgMesh = new THREE.Mesh(bgGeometry, bgMaterial);
+  bgMesh.renderOrder = -1;
+  bgMesh.frustumCulled = false;
+  scene.add(bgMesh);
 
   // Ambient light (reduced)
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
