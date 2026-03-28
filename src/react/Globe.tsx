@@ -119,9 +119,17 @@ export function Globe({
   const bassRef = useRef(bass);
   const energyRef = useRef(energy);
   const ambientIntensityRef = useRef(ambientIntensity);
+  const showCountriesRef = useRef(showCountries);
+  const showBordersRef = useRef(config.showBorders ?? true);
+  const showGlobeFillRef = useRef(config.showGlobeFill ?? true);
+  const showCitiesRef = useRef(showCities);
   rotationSpeedRef.current = rotationSpeed;
   glowIntensityRef.current = glowIntensity;
   bloomStrengthRef.current = bloomStrength;
+  showCountriesRef.current = showCountries;
+  showBordersRef.current = config.showBorders ?? true;
+  showGlobeFillRef.current = config.showGlobeFill ?? true;
+  showCitiesRef.current = showCities;
   bassRef.current = bass;
   energyRef.current = energy;
   ambientIntensityRef.current = ambientIntensity;
@@ -314,8 +322,15 @@ export function Globe({
       }
 
       if (sceneRef.current.model && sceneRef.current.index) {
+        // Update visibility from refs (real-time toggle support)
+        const idx = sceneRef.current.index;
+        for (const mesh of idx.allCountryMeshes) mesh.visible = showCountriesRef.current;
+        for (const mesh of idx.allBorderMeshes) mesh.visible = showBordersRef.current;
+        for (const mesh of idx.allCityMeshes) mesh.visible = showCitiesRef.current;
+        if (idx.globeMesh) idx.globeMesh.visible = showGlobeFillRef.current;
+
         // Decay aura effects on clicked countries
-        for (const mesh of sceneRef.current.index.allCountryMeshes) {
+        for (const mesh of idx.allCountryMeshes) {
           if ((mesh as any)._auraDecay) (mesh as any)._auraDecay();
         }
 
