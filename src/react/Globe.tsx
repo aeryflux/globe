@@ -405,18 +405,26 @@ export function Globe({
         const accent = new THREE.Color(colors.accent);
         const startTime = sceneRef.current.time;
 
-        // Country glow spike
+        // Country glow spike — change color + emissive
         const mat = mesh.material as THREE.MeshStandardMaterial;
         if (mat.isMeshStandardMaterial) {
+          const origColor = mat.color.clone();
+          const origEmissive = mat.emissive.clone();
+          mat.color.copy(accent);
           mat.emissive.copy(accent);
-          mat.emissiveIntensity = 2.5;
+          mat.emissiveIntensity = 3.0;
+          mat.metalness = 0.4;
+          mat.roughness = 0.2;
           (mesh as any)._auraDecay = () => {
             if (!sceneRef.current) return;
             const elapsed = sceneRef.current.time - startTime;
-            // Slow decay (5 seconds) with pulsing
-            const decay = Math.exp(-elapsed * 0.4);
+            const decay = Math.exp(-elapsed * 0.3);
             const pulse = 1 + Math.sin(elapsed * 4) * 0.3 * decay;
-            mat.emissiveIntensity = Math.max(0.15, 2.5 * decay * pulse);
+            mat.emissiveIntensity = Math.max(0.15, 3.0 * decay * pulse);
+            // Fade color back to original
+            mat.color.copy(accent).lerp(origColor, 1 - decay);
+            mat.emissive.copy(accent).lerp(origEmissive, 1 - decay);
+            if (decay < 0.01) { (mesh as any)._auraDecay = null; mat.metalness = 0.1; mat.roughness = 0.6; }
           };
         }
 
@@ -426,22 +434,30 @@ export function Globe({
         for (const bm of borderMeshes) {
           const bMat = bm.material as THREE.MeshStandardMaterial;
           if (!bMat.isMeshStandardMaterial) continue;
+          const origBorderColor = bMat.color.clone();
+          const origBorderEmissive = bMat.emissive.clone();
+          // Flash bright accent
+          bMat.color.copy(accent);
           bMat.emissive.copy(accent);
-          bMat.emissiveIntensity = 3.0;
+          bMat.emissiveIntensity = 4.0;
+          bMat.opacity = 1.0;
           // Kaspersky aura: 3 cascading sine waves + slow decay
           (bm as any)._auraDecay = () => {
             if (!sceneRef.current) return;
             const elapsed = sceneRef.current.time - startTime;
-            const decay = Math.exp(-elapsed * 0.3); // 7+ seconds visible
+            const decay = Math.exp(-elapsed * 0.25); // 8+ seconds visible
             // 3 sine layers at different frequencies (Kaspersky cascade)
             const wave1 = Math.max(0, Math.sin(elapsed * 2.0)) * 0.4;
             const wave2 = Math.max(0, Math.sin(elapsed * 3.2 + 1.0)) * 0.3;
             const wave3 = Math.max(0, Math.sin(elapsed * 1.4 + 2.0)) * 0.2;
             const aura = (wave1 + wave2 + wave3) * decay;
-            bMat.emissiveIntensity = 0.3 + aura * 3.0;
-            // Scale pulse: border subtly expands on wave peaks
-            const scalePulse = 1.0 + aura * 0.04;
+            bMat.emissiveIntensity = 0.5 + aura * 4.0;
+            bMat.color.copy(accent).lerp(origBorderColor, 1 - decay);
+            bMat.emissive.copy(accent).lerp(origBorderEmissive, 1 - decay);
+            // Scale pulse: border expands on wave peaks
+            const scalePulse = 1.0 + aura * 0.06;
             bm.scale.setScalar(scalePulse);
+            if (decay < 0.01) { (bm as any)._auraDecay = null; bm.scale.setScalar(1); }
           };
         }
         if (onCountryClick) onCountryClick(name);
