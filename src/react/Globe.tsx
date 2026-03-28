@@ -336,6 +336,17 @@ export function Globe({
         for (const mesh of idx.allBorderMeshes) {
           if ((mesh as any)._auraDecay) (mesh as any)._auraDecay();
         }
+        // Decay aura clones (Kaspersky expanding rings)
+        const clones = (sceneRef.current as any)._auraClones as THREE.Mesh[] | undefined;
+        if (clones) {
+          for (let i = clones.length - 1; i >= 0; i--) {
+            if ((clones[i] as any)._auraDecay) {
+              (clones[i] as any)._auraDecay();
+            } else {
+              clones.splice(i, 1); // Remove finished clones
+            }
+          }
+        }
 
         // Only auto-rotate if controls are not enabled (user controls rotation)
         if (!enableControls) {
@@ -429,39 +440,79 @@ export function Globe({
         }
 
         // Kaspersky aura: border cascade pulse (3 sine layers, slow decay)
-        const bordersKey = mesh.name.replace(/^country_|^cell_/i, '').replace(/_\d+$/, '');
+        const bordersKey = mesh.name.toLowerCase().replace(/^country_|^cell_/i, '').replace(/_\d+$/, '');
         const borderMeshes = sceneRef.current.index.countryToBorder.get(bordersKey) || [];
+        console.log('[Globe] Aura:', bordersKey, '| borders found:', borderMeshes.length, '| keys:', [...sceneRef.current.index.countryToBorder.keys()].slice(0, 5));
+        // Kaspersky aura: clone borders into 3 expanding rings
+        const AURA_LAYERS = 3;
+        const auraClones: THREE.Mesh[] = [];
         for (const bm of borderMeshes) {
           const bMat = bm.material as THREE.MeshStandardMaterial;
           if (!bMat.isMeshStandardMaterial) continue;
-          const origBorderColor = bMat.color.clone();
-          const origBorderEmissive = bMat.emissive.clone();
-          // Flash bright accent
+          // Flash original border
           bMat.color.copy(accent);
           bMat.emissive.copy(accent);
-          bMat.emissiveIntensity = 4.0;
-          bMat.opacity = 1.0;
-          // Kaspersky aura: 3 cascading sine waves + slow decay
+          bMat.emissiveIntensity = 2.0;
+
+          // Clone border mesh into aura layers
+          for (let layer = 0; layer < AURA_LAYERS; layer++) {
+            const clone = bm.clone();
+            const auraMat = new THREE.MeshStandardMaterial({
+              color: accent.clone(),
+              emissive: accent.clone(),
+              emissiveIntensity: 1.5,
+              metalness: 0.3,
+              roughness: 0.4,
+              transparent: true,
+              opacity: 0.6,
+              side: THREE.DoubleSide,
+              depthWrite: false,
+            });
+            clone.material = auraMat;
+            clone.renderOrder = bm.renderOrder + 1 + layer;
+            bm.parent?.add(clone);
+            auraClones.push(clone);
+
+            const phaseOffset = layer / AURA_LAYERS;
+            (clone as any)._auraDecay = () => {
+              if (!sceneRef.current) return;
+              const elapsed = sceneRef.current.time - startTime;
+              const decay = Math.exp(-elapsed * 0.3);
+              // Each layer pulses at a different phase offset
+              const rawPhase = ((elapsed * 0.8) + phaseOffset) % 1;
+              const opacityPhase = Math.sin(rawPhase * Math.PI);
+              auraMat.opacity = 0.6 * opacityPhase * decay;
+              // Expand outward
+              const expand = 1 + rawPhase * 0.15;
+              clone.scale.setScalar(expand);
+              auraMat.emissiveIntensity = 1.5 * opacityPhase * decay;
+              if (decay < 0.02) {
+                clone.parent?.remove(clone);
+                clone.geometry.dispose();
+                auraMat.dispose();
+                (clone as any)._auraDecay = null;
+              }
+            };
+          }
+
+          // Original border decay
+          const origColor = bMat.color.clone();
+          const origEmissive = bMat.emissive.clone();
           (bm as any)._auraDecay = () => {
             if (!sceneRef.current) return;
             const elapsed = sceneRef.current.time - startTime;
-            const decay = Math.exp(-elapsed * 0.25); // 8+ seconds visible
-            // 3 sine layers at different frequencies (Kaspersky cascade)
-            const wave1 = Math.max(0, Math.sin(elapsed * 2.0)) * 0.4;
-            const wave2 = Math.max(0, Math.sin(elapsed * 3.2 + 1.0)) * 0.3;
-            const wave3 = Math.max(0, Math.sin(elapsed * 1.4 + 2.0)) * 0.2;
-            const aura = (wave1 + wave2 + wave3) * decay;
-            bMat.emissiveIntensity = 0.5 + aura * 4.0;
-            bMat.color.copy(accent).lerp(origBorderColor, 1 - decay);
-            bMat.emissive.copy(accent).lerp(origBorderEmissive, 1 - decay);
-            // Scale pulse: border expands on wave peaks
-            const scalePulse = 1.0 + aura * 0.06;
-            bm.scale.setScalar(scalePulse);
-            if (decay < 0.01) { (bm as any)._auraDecay = null; bm.scale.setScalar(1); }
+            const decay = Math.exp(-elapsed * 0.3);
+            bMat.emissiveIntensity = 0.5 + decay * 2.0;
+            bMat.color.copy(accent).lerp(origColor, 1 - decay);
+            bMat.emissive.copy(accent).lerp(origEmissive, 1 - decay);
+            if (decay < 0.02) { (bm as any)._auraDecay = null; }
           };
         }
+        // Store clones for render loop decay
+        if (!sceneRef.current._auraClones) (sceneRef.current as any)._auraClones = [];
+        (sceneRef.current as any)._auraClones.push(...auraClones);
         if (onCountryClick) onCountryClick(name);
-        debugLog('Country clicked:', name);
+        console.log('[Globe] Click:', name, '| borders:', borderMeshes.length, '| mat type:', mat?.constructor?.name);
       }
     };
     if (enableControls) {

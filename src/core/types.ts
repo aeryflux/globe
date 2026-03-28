@@ -55,10 +55,10 @@ export interface SurfaceColors {
 /** Predefined surface themes */
 export const SURFACES: Record<SurfaceId, SurfaceColors> = {
   dark: {
-    accent: '#ffffff',
+    accent: '#00ff88',
     background: '#050508',
-    countryColor: '#c0c0c0',
-    globeFillColor: '#0a0a0f',
+    countryColor: '#e0e0e0',
+    globeFillColor: '#06060e',
   },
   green: {
     accent: '#00ff88',
