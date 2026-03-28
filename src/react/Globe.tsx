@@ -47,6 +47,8 @@ export interface GlobeProps extends GlobeConfig {
   cityData?: Record<string, { scale: number; color?: string; extrusion?: number }>;
   /** Color for data highlights (default: accent color) */
   dataHighlightColor?: string;
+  /** Callback when a country is clicked (requires enableControls) */
+  onCountryClick?: (countryName: string) => void;
   /** Enable debug logging (default: false) */
   debug?: boolean;
 }
@@ -59,6 +61,7 @@ export function Globe({
   countryData,
   cityData,
   dataHighlightColor,
+  onCountryClick,
   debug = false,
   ...config
 }: GlobeProps) {
@@ -311,6 +314,11 @@ export function Globe({
       }
 
       if (sceneRef.current.model && sceneRef.current.index) {
+        // Decay aura effects on clicked countries
+        for (const mesh of sceneRef.current.index.allCountryMeshes) {
+          if ((mesh as any)._auraDecay) (mesh as any)._auraDecay();
+        }
+
         // Only auto-rotate if controls are not enabled (user controls rotation)
         if (!enableControls) {
           animateGlobeRotation(sceneRef.current.model, t, rotationSpeedRef.current, bassRef.current, energyRef.current);
@@ -362,9 +370,59 @@ export function Globe({
     };
     window.addEventListener('resize', handleResize);
 
+    // Country click via raycasting
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    const handleClick = (e: MouseEvent) => {
+      if (!sceneRef.current?.model || !sceneRef.current?.index) return;
+      const rect = container.getBoundingClientRect();
+      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(mouse, sceneRef.current.camera);
+      const meshes = sceneRef.current.index.allCountryMeshes.filter(m => m.visible);
+      const intersects = raycaster.intersectObjects(meshes, false);
+      if (intersects.length > 0) {
+        const mesh = intersects[0].object as THREE.Mesh;
+        let name = mesh.name.replace(/^country_|^cell_/i, '').replace(/_\d+$/, '').replace(/_/g, ' ');
+        // Aura effect: pulse the clicked country
+        const mat = mesh.material as THREE.MeshStandardMaterial;
+        if (mat.isMeshStandardMaterial) {
+          const accent = new THREE.Color(colors.accent);
+          mat.emissive.copy(accent);
+          mat.emissiveIntensity = 2.0;
+          // Decay over time via animation loop
+          const startTime = sceneRef.current.time;
+          const originalIntensity = mat.emissiveIntensity;
+          const decayFn = () => {
+            if (!sceneRef.current) return;
+            const elapsed = sceneRef.current.time - startTime;
+            mat.emissiveIntensity = Math.max(0.2, originalIntensity * Math.exp(-elapsed * 2));
+          };
+          // Store decay function to be called in render loop
+          (mesh as any)._auraDecay = decayFn;
+          (mesh as any)._auraStart = startTime;
+        }
+        // Find and pulse borders
+        const bordersKey = mesh.name.replace(/^country_|^cell_/i, '').replace(/_\d+$/, '');
+        const borderMeshes = sceneRef.current.index.countryToBorder.get(bordersKey) || [];
+        for (const bm of borderMeshes) {
+          const bMat = bm.material as THREE.MeshStandardMaterial;
+          if (bMat.isMeshStandardMaterial) {
+            bMat.emissiveIntensity = 3.0;
+          }
+        }
+        if (onCountryClick) onCountryClick(name);
+        debugLog('Country clicked:', name);
+      }
+    };
+    if (enableControls) {
+      renderer.domElement.addEventListener('click', handleClick);
+    }
+
     // Cleanup
     return () => {
       window.removeEventListener('resize', handleResize);
+      renderer.domElement.removeEventListener('click', handleClick);
 
       if (sceneRef.current?.animationId) {
         cancelAnimationFrame(sceneRef.current.animationId);
