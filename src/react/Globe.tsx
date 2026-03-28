@@ -418,7 +418,7 @@ export function Globe({
         // Skip if same country already selected
         if ((sceneRef.current as any)._selectedCountry === bordersKey) return;
 
-        // Clear previous aura (clones + decay functions)
+        // Clear previous aura: clones + restore original materials
         const oldClones = (sceneRef.current as any)._auraClones as THREE.Mesh[] | undefined;
         if (oldClones) {
           for (const c of oldClones) {
@@ -429,9 +429,30 @@ export function Globe({
           }
           (sceneRef.current as any)._auraClones = [];
         }
-        // Reset all country/border decay
-        for (const m of sceneRef.current.index.allCountryMeshes) (m as any)._auraDecay = null;
-        for (const m of sceneRef.current.index.allBorderMeshes) { (m as any)._auraDecay = null; m.scale.setScalar(1); }
+        // Restore original colors on previously affected meshes
+        for (const m of sceneRef.current.index.allCountryMeshes) {
+          (m as any)._auraDecay = null;
+          const orig = (m as any)._origMat;
+          if (orig) {
+            const mat = m.material as THREE.MeshStandardMaterial;
+            mat.color.copy(orig.color);
+            mat.emissive.copy(orig.emissive);
+            mat.emissiveIntensity = orig.emissiveIntensity;
+            mat.metalness = orig.metalness;
+            mat.roughness = orig.roughness;
+          }
+        }
+        for (const m of sceneRef.current.index.allBorderMeshes) {
+          (m as any)._auraDecay = null;
+          m.scale.setScalar(1);
+          const orig = (m as any)._origMat;
+          if (orig) {
+            const mat = m.material as THREE.MeshStandardMaterial;
+            mat.color.copy(orig.color);
+            mat.emissive.copy(orig.emissive);
+            mat.emissiveIntensity = orig.emissiveIntensity;
+          }
+        }
 
         (sceneRef.current as any)._selectedCountry = bordersKey;
         const accent = new THREE.Color(colors.accent);
@@ -440,8 +461,12 @@ export function Globe({
         // Country glow spike — change color + emissive
         const mat = mesh.material as THREE.MeshStandardMaterial;
         if (mat.isMeshStandardMaterial) {
-          const origColor = mat.color.clone();
-          const origEmissive = mat.emissive.clone();
+          // Save originals for restore on next click
+          if (!(mesh as any)._origMat) {
+            (mesh as any)._origMat = { color: mat.color.clone(), emissive: mat.emissive.clone(), emissiveIntensity: mat.emissiveIntensity, metalness: mat.metalness, roughness: mat.roughness };
+          }
+          const origColor = (mesh as any)._origMat.color.clone();
+          const origEmissive = (mesh as any)._origMat.emissive.clone();
           mat.color.copy(accent);
           mat.emissive.copy(accent);
           mat.emissiveIntensity = 3.0;
@@ -467,6 +492,10 @@ export function Globe({
         for (const bm of borderMeshes) {
           const bMat = bm.material as THREE.MeshStandardMaterial;
           if (!bMat.isMeshStandardMaterial) continue;
+          // Save originals for restore
+          if (!(bm as any)._origMat) {
+            (bm as any)._origMat = { color: bMat.color.clone(), emissive: bMat.emissive.clone(), emissiveIntensity: bMat.emissiveIntensity };
+          }
           // Flash original border
           bMat.color.copy(accent);
           bMat.emissive.copy(accent);
