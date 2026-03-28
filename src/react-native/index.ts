@@ -32,12 +32,20 @@ export {
   createGlobeCamera,
   animateGlobeRotation,
   animateBorderPulse,
+  animateAmbientWave,
   animateDataHighlights,
   animateCityHighlights,
   resetAllCountries,
   resetAllCities,
+  updateGradient,
+  updateGlobeFillTint,
+  updateAccentLight,
+  createIntroState,
+  applyIntroAnimation,
   type DataHighlightState,
   type CityHighlightState,
+  type IntroState,
+  type SceneRefs,
 } from '../core/GlobeRenderer';
 
 /**

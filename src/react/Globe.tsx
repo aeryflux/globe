@@ -28,8 +28,15 @@ import {
   animateCityHighlights,
   resetAllCountries,
   resetAllCities,
+  createIntroState,
+  applyIntroAnimation,
+  updateGradient,
+  updateGlobeFillTint,
+  updateAccentLight,
   type DataHighlightState,
   type CityHighlightState,
+  type IntroState,
+  type SceneRefs,
 } from '../core/GlobeRenderer';
 import { checkWebGLSupport } from '../core/webgl';
 import { GlobeFallback } from './GlobeFallback';
@@ -78,6 +85,8 @@ export function Globe({
     renderer: THREE.WebGLRenderer;
     composer: EffectComposer | null;
     bloomPass: any | null;
+    bgMaterial: THREE.ShaderMaterial;
+    accentLight: THREE.PointLight;
     controls: OrbitControls | null;
     model: THREE.Group | null;
     index: GlobeIndex | null;
@@ -85,6 +94,7 @@ export function Globe({
     time: number;
     highlights: Map<string, DataHighlightState>;
     cityHighlights: Map<string, CityHighlightState>;
+    intro: IntroState | null;
   } | null>(null);
 
   // Memoize colors to prevent unnecessary effect triggers
@@ -123,6 +133,10 @@ export function Globe({
   const showBordersRef = useRef(config.showBorders ?? true);
   const showGlobeFillRef = useRef(config.showGlobeFill ?? true);
   const showCitiesRef = useRef(showCities);
+  const gradientTopRef = useRef(config.gradientTop || '#06060e');
+  const gradientBottomRef = useRef(config.gradientBottom || '#0e1430');
+  const globeFillTintRef = useRef(config.globeFillTint || '');
+  const ambientColorRef = useRef(ambientColor || colors.accent);
   rotationSpeedRef.current = rotationSpeed;
   glowIntensityRef.current = glowIntensity;
   bloomStrengthRef.current = bloomStrength;
@@ -133,6 +147,10 @@ export function Globe({
   bassRef.current = bass;
   energyRef.current = energy;
   ambientIntensityRef.current = ambientIntensity;
+  gradientTopRef.current = config.gradientTop || '#06060e';
+  gradientBottomRef.current = config.gradientBottom || '#0e1430';
+  globeFillTintRef.current = config.globeFillTint || '';
+  ambientColorRef.current = ambientColor || colors.accent;
 
   // Create stable key for countryData to detect actual changes
   const countryDataKey = useMemo(() => {
@@ -180,7 +198,7 @@ export function Globe({
     const height = container.clientHeight;
 
     // Create scene
-    const scene = createGlobeScene(colors);
+    const { scene, bgMaterial, accentLight } = createGlobeScene(colors, config.gradientTop, config.gradientBottom);
 
     // Create camera
     const camera = createGlobeCamera(width, height);
@@ -267,6 +285,8 @@ export function Globe({
       renderer,
       composer,
       bloomPass,
+      bgMaterial,
+      accentLight,
       controls,
       model: null,
       index: null,
@@ -274,6 +294,7 @@ export function Globe({
       time: 0,
       highlights: new Map(),
       cityHighlights: new Map(),
+      intro: null,
     };
 
     // Load model
@@ -292,6 +313,15 @@ export function Globe({
         if (sceneRef.current) {
           sceneRef.current.model = model;
           sceneRef.current.index = index;
+          // Start intro animation if enabled
+          if (config.introAnimation) {
+            sceneRef.current.intro = createIntroState(
+              sceneRef.current.time,
+              config.introDuration || 2.5
+            );
+            // Position model off-screen initially
+            model.position.x = sceneRef.current.intro.startX;
+          }
         }
 
         setIsLoading(false);
@@ -321,6 +351,12 @@ export function Globe({
         sceneRef.current.bloomPass.strength = bloomStrengthRef.current * 1.5;
       }
 
+      // Update gradient background (smooth lerp)
+      updateGradient(sceneRef.current.bgMaterial, gradientTopRef.current, gradientBottomRef.current);
+
+      // Update accent light color
+      updateAccentLight(sceneRef.current.accentLight, ambientColorRef.current);
+
       if (sceneRef.current.model && sceneRef.current.index) {
         // Update visibility from refs (real-time toggle support)
         const idx = sceneRef.current.index;
@@ -348,6 +384,16 @@ export function Globe({
           }
         }
 
+        // Globe fill tint (real-time color transition)
+        if (globeFillTintRef.current && sceneRef.current.index) {
+          updateGlobeFillTint(sceneRef.current.index, globeFillTintRef.current);
+        }
+
+        // Intro animation (slide + spin from left)
+        if (sceneRef.current.intro?.active) {
+          applyIntroAnimation(sceneRef.current.model, t, sceneRef.current.intro);
+        }
+
         // Only auto-rotate if controls are not enabled (user controls rotation)
         if (!enableControls) {
           animateGlobeRotation(sceneRef.current.model, t, rotationSpeedRef.current, bassRef.current, energyRef.current);
@@ -356,7 +402,7 @@ export function Globe({
         if (sceneRef.current.highlights.size === 0) {
           animateAmbientWave(
             sceneRef.current.index, t,
-            ambientColor || colors.accent,
+            ambientColorRef.current,
             ambientIntensityRef.current,
             bassRef.current,
             energyRef.current

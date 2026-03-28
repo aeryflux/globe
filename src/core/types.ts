@@ -120,14 +120,22 @@ export interface GlobeConfig {
   treble?: number;
   /** Music reactivity: energy level (0-1) */
   energy?: number;
-  /** Gradient top color */
+  /** Gradient top color (default: #06060e) */
   gradientTop?: string;
-  /** Gradient bottom color */
+  /** Gradient bottom color (default: #0e1430) */
   gradientBottom?: string;
+  /** Dynamic globe fill tint (overrides globeFillColor in real-time) */
+  globeFillTint?: string;
   /** Country data for data-driven visualization */
   countryData?: CountryDataMap;
   /** Accent color for data highlights */
   dataHighlightColor?: string;
+
+  // ── Intro Animation ──
+  /** Enable entry animation: globe spins in from the left (default: false) */
+  introAnimation?: boolean;
+  /** Intro duration in seconds (default: 2.5) */
+  introDuration?: number;
 }
 
 /** Original mesh state for animations (stored before any transforms) */

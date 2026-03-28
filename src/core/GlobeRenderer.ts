@@ -452,10 +452,17 @@ export function applyGlobeMaterials(
   }
 }
 
+/** Scene refs for real-time updates */
+export interface SceneRefs {
+  scene: THREE.Scene;
+  bgMaterial: THREE.ShaderMaterial;
+  accentLight: THREE.PointLight;
+}
+
 /**
  * Create globe scene with lighting
  */
-export function createGlobeScene(colors: SurfaceColors): THREE.Scene {
+export function createGlobeScene(colors: SurfaceColors, gradientTop?: string, gradientBottom?: string): SceneRefs {
   const scene = new THREE.Scene();
   // Gradient background (top: dark, bottom: deep blue)
   const bgGeometry = new THREE.PlaneGeometry(2, 2);
@@ -463,8 +470,8 @@ export function createGlobeScene(colors: SurfaceColors): THREE.Scene {
     depthWrite: false,
     depthTest: false,
     uniforms: {
-      colorTop: { value: new THREE.Color('#06060e') },
-      colorBottom: { value: new THREE.Color('#0e1430') },
+      colorTop: { value: new THREE.Color(gradientTop || '#06060e') },
+      colorBottom: { value: new THREE.Color(gradientBottom || '#0e1430') },
     },
     vertexShader: `
       varying vec2 vUv;
@@ -502,11 +509,60 @@ export function createGlobeScene(colors: SurfaceColors): THREE.Scene {
   scene.add(fillLight);
 
   // Accent point light (subtle)
-  const pointLight = new THREE.PointLight(colors.accent, 0.4, 15);
-  pointLight.position.set(0, 0, 4);
-  scene.add(pointLight);
+  const accentLight = new THREE.PointLight(colors.accent, 0.4, 15);
+  accentLight.position.set(0, 0, 4);
+  scene.add(accentLight);
 
-  return scene;
+  return { scene, bgMaterial, accentLight };
+}
+
+// Reusable color objects for lerp (avoid GC)
+const _lerpColorA = new THREE.Color();
+const _lerpColorB = new THREE.Color();
+
+/**
+ * Smoothly update gradient background uniforms
+ */
+export function updateGradient(
+  bgMaterial: THREE.ShaderMaterial,
+  targetTop: string,
+  targetBottom: string,
+  lerpFactor: number = 0.03
+): void {
+  const topUniform = bgMaterial.uniforms.colorTop.value as THREE.Color;
+  const bottomUniform = bgMaterial.uniforms.colorBottom.value as THREE.Color;
+  _lerpColorA.set(targetTop);
+  _lerpColorB.set(targetBottom);
+  topUniform.lerp(_lerpColorA, lerpFactor);
+  bottomUniform.lerp(_lerpColorB, lerpFactor);
+}
+
+/**
+ * Smoothly update globe fill (ocean) tint in real-time
+ */
+export function updateGlobeFillTint(
+  index: GlobeIndex,
+  targetColor: string,
+  lerpFactor: number = 0.03
+): void {
+  if (!index.globeMesh) return;
+  const mat = index.globeMesh.material as THREE.MeshStandardMaterial;
+  if (!mat.isMeshStandardMaterial) return;
+  _lerpColorA.set(targetColor);
+  mat.color.lerp(_lerpColorA, lerpFactor);
+  mat.emissive.lerp(_lerpColorA.multiplyScalar(0.1), lerpFactor);
+}
+
+/**
+ * Update accent point light color
+ */
+export function updateAccentLight(
+  accentLight: THREE.PointLight,
+  targetColor: string,
+  lerpFactor: number = 0.03
+): void {
+  _lerpColorA.set(targetColor);
+  accentLight.color.lerp(_lerpColorA, lerpFactor);
 }
 
 /**
@@ -523,6 +579,67 @@ export function createGlobeCamera(width: number, height: number): THREE.Perspect
   const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
   camera.position.set(0, 0, getResponsiveCameraZ(width));
   return camera;
+}
+
+/**
+ * Intro animation state
+ */
+export interface IntroState {
+  /** Whether intro is active */
+  active: boolean;
+  /** Start time of intro */
+  startTime: number;
+  /** Duration in seconds */
+  duration: number;
+  /** Starting X offset (world units, negative = left) */
+  startX: number;
+  /** Extra spin rotations during intro */
+  spinRevolutions: number;
+}
+
+/**
+ * Create intro animation state
+ */
+export function createIntroState(startTime: number, duration: number = 2.5): IntroState {
+  return {
+    active: true,
+    startTime,
+    duration,
+    startX: -8,
+    spinRevolutions: 2,
+  };
+}
+
+/**
+ * Apply intro animation to model. Returns true while active.
+ */
+export function applyIntroAnimation(
+  model: THREE.Object3D,
+  time: number,
+  intro: IntroState
+): boolean {
+  if (!intro.active) return false;
+
+  const elapsed = time - intro.startTime;
+  const progress = Math.min(1, elapsed / intro.duration);
+
+  if (progress >= 1) {
+    intro.active = false;
+    model.position.x = 0;
+    return false;
+  }
+
+  // Ease out cubic: fast start, smooth deceleration
+  const ease = 1 - Math.pow(1 - progress, 3);
+
+  // Slide from startX to 0
+  model.position.x = intro.startX * (1 - ease);
+
+  // Extra spin during entry (added on top of normal rotation)
+  const spinEase = 1 - Math.pow(1 - progress, 2);
+  model.rotation.y += (intro.spinRevolutions * Math.PI * 2 * (1 - spinEase)) * 0.016 / intro.duration;
+
+  return true;
 }
 
 /**

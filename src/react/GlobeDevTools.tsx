@@ -56,65 +56,60 @@ export function GlobeDevTools({ config, onChange, side = 'right', style }: Globe
     return () => cancelAnimationFrame(rafId);
   }, []);
 
+  const bools = TOGGLES.filter(t => t.type === 'bool');
+  const ranges = TOGGLES.filter(t => t.type === 'range');
+
   return (
     <div style={{
-      position: 'absolute',
-      top: 16,
-      [side]: 16,
       zIndex: 100,
       display: 'flex',
       flexDirection: 'column',
-      gap: 4,
+      gap: 6,
       background: 'rgba(6,6,14,0.85)',
       borderRadius: 10,
-      padding: 8,
+      padding: '8px 12px',
       border: '1px solid rgba(255,255,255,0.06)',
-      minWidth: 130,
       backdropFilter: 'blur(8px)',
+      width: '100%',
+      maxWidth: 360,
       ...style,
     }}>
-      {/* FPS */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
-        <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)' }}>FPS</span>
-        <span style={{ fontSize: 10, fontWeight: 700, color: fps >= 50 ? '#00ff88' : fps >= 30 ? '#ffaa00' : '#ff4444' }}>{fps}</span>
+      {/* FPS + bool toggles — single row */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 10, fontWeight: 700, color: fps >= 50 ? '#00ff88' : fps >= 30 ? '#ffaa00' : '#ff4444', marginRight: 4 }}>{fps}<span style={{ fontSize: 7, color: 'rgba(255,255,255,0.3)', marginLeft: 2 }}>fps</span></span>
+        {bools.map(toggle => (
+          <label key={toggle.key as string} onClick={() => onChange({ [toggle.key]: !config[toggle.key] })} style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+            <div style={{
+              width: 8, height: 8, borderRadius: 4,
+              background: config[toggle.key] ? '#00ff88' : 'rgba(255,255,255,0.1)',
+              border: '1px solid rgba(255,255,255,0.15)',
+              transition: 'background 0.15s',
+            }} />
+            <span style={{ fontSize: 8, color: config[toggle.key] ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.25)' }}>{toggle.label}</span>
+          </label>
+        ))}
       </div>
 
-      {TOGGLES.map(toggle => (
-        <div key={toggle.key as string} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {toggle.type === 'bool' ? (
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', flex: 1 }}>
-              <div
-                onClick={() => onChange({ [toggle.key]: !config[toggle.key] })}
-                style={{
-                  width: 10, height: 10, borderRadius: 5, cursor: 'pointer',
-                  background: config[toggle.key] ? '#00ff88' : 'rgba(255,255,255,0.1)',
-                  border: '1px solid rgba(255,255,255,0.15)',
-                  transition: 'background 0.15s',
-                }}
-              />
-              <span style={{ fontSize: 9, color: config[toggle.key] ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.3)' }}>
-                {toggle.label}
+      {/* Range sliders — grid 2 columns */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 12px' }}>
+        {ranges.map(toggle => (
+          <div key={toggle.key as string}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.4)' }}>{toggle.label}</span>
+              <span style={{ fontSize: 7, color: 'rgba(255,255,255,0.2)' }}>
+                {Number(config[toggle.key] || 0).toFixed(toggle.step && toggle.step < 0.01 ? 4 : 1)}
               </span>
-            </label>
-          ) : (
-            <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)' }}>{toggle.label}</span>
-                <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.25)' }}>
-                  {Number(config[toggle.key] || 0).toFixed(toggle.step && toggle.step < 0.01 ? 4 : 1)}
-                </span>
-              </div>
-              <input
-                type="range"
-                min={toggle.min} max={toggle.max} step={toggle.step}
-                value={Number(config[toggle.key] || 0)}
-                onChange={e => onChange({ [toggle.key]: parseFloat(e.target.value) })}
-                style={{ width: '100%', height: 3, accentColor: '#00ff88' }}
-              />
             </div>
-          )}
-        </div>
-      ))}
+            <input
+              type="range"
+              min={toggle.min} max={toggle.max} step={toggle.step}
+              value={Number(config[toggle.key] || 0)}
+              onChange={e => onChange({ [toggle.key]: parseFloat(e.target.value) })}
+              style={{ width: '100%', height: 2, accentColor: '#00ff88' }}
+            />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
