@@ -4,6 +4,7 @@
 
 export { Globe, type GlobeProps } from './Globe';
 export { GlobeFallback, type GlobeFallbackProps } from './GlobeFallback';
+export { GlobeDevTools, type GlobeDevToolsProps } from './GlobeDevTools';
 export { useWebGLSupport } from './useWebGLSupport';
 
 // Re-export types
