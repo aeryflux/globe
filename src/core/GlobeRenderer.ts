@@ -62,8 +62,9 @@ export function buildGlobeIndex(model: THREE.Object3D): GlobeIndex {
     const name = mesh.name || '';
     const nameLower = name.toLowerCase();
 
-    // GlobeFill detection
-    if (nameLower === 'globefill' || nameLower === 'atlasglobefill' || nameLower === 'weatherglobefill') {
+    // GlobeFill detection — match any mesh containing "globefill" or "globe_fill"
+    if (nameLower === 'globefill' || nameLower === 'atlasglobefill' || nameLower === 'weatherglobefill' ||
+        nameLower.includes('globefill') || nameLower.includes('globe_fill')) {
       index.globeMesh = mesh;
       return;
     }
@@ -189,6 +190,8 @@ export function buildGlobeIndex(model: THREE.Object3D): GlobeIndex {
     }
   });
 
+  // Debug: log index stats
+  console.log(`[Globe] Index: ${index.allCountryMeshes.length} countries, ${index.allBorderMeshes.length} borders, ${index.allCityMeshes.length} cities, globeFill: ${!!index.globeMesh}`);
 
   return index;
 }

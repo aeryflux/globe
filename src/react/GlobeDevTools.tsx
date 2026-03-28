@@ -2,7 +2,7 @@
  * GlobeDevTools — minimal vertical toggle panel
  */
 
-import { CSSProperties } from 'react';
+import { CSSProperties, useState, useEffect, useRef } from 'react';
 import type { GlobeConfig } from '../core/types';
 
 export interface GlobeDevToolsProps {
@@ -36,6 +36,26 @@ const TOGGLES: Toggle[] = [
 ];
 
 export function GlobeDevTools({ config, onChange, side = 'right', style }: GlobeDevToolsProps) {
+  const [fps, setFps] = useState(0);
+  const framesRef = useRef(0);
+  const lastTimeRef = useRef(performance.now());
+
+  useEffect(() => {
+    let rafId: number;
+    const tick = () => {
+      framesRef.current++;
+      const now = performance.now();
+      if (now - lastTimeRef.current >= 1000) {
+        setFps(framesRef.current);
+        framesRef.current = 0;
+        lastTimeRef.current = now;
+      }
+      rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, []);
+
   return (
     <div style={{
       position: 'absolute',
@@ -53,6 +73,12 @@ export function GlobeDevTools({ config, onChange, side = 'right', style }: Globe
       backdropFilter: 'blur(8px)',
       ...style,
     }}>
+      {/* FPS */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+        <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)' }}>FPS</span>
+        <span style={{ fontSize: 10, fontWeight: 700, color: fps >= 50 ? '#00ff88' : fps >= 30 ? '#ffaa00' : '#ff4444' }}>{fps}</span>
+      </div>
+
       {TOGGLES.map(toggle => (
         <div key={toggle.key as string} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {toggle.type === 'bool' ? (
