@@ -470,7 +470,11 @@ export function Globe({
             });
             clone.material = auraMat;
             clone.renderOrder = bm.renderOrder + 1 + layer;
-            bm.parent?.add(clone);
+            const parent = bm.parent || sceneRef.current!.scene;
+            parent.add(clone);
+            clone.position.copy(bm.position);
+            clone.rotation.copy(bm.rotation);
+            clone.quaternion.copy(bm.quaternion);
             auraClones.push(clone);
 
             const phaseOffset = layer / AURA_LAYERS;
@@ -509,8 +513,9 @@ export function Globe({
           };
         }
         // Store clones for render loop decay
-        if (!sceneRef.current._auraClones) (sceneRef.current as any)._auraClones = [];
+        if (!(sceneRef.current as any)._auraClones) (sceneRef.current as any)._auraClones = [];
         (sceneRef.current as any)._auraClones.push(...auraClones);
+        console.log('[Globe] Aura clones created:', auraClones.length, 'for', borderMeshes.length, 'borders');
         if (onCountryClick) onCountryClick(name);
         console.log('[Globe] Click:', name, '| borders:', borderMeshes.length, '| mat type:', mat?.constructor?.name);
       }
