@@ -26,7 +26,9 @@ interface Toggle {
 }
 
 const TOGGLES: Toggle[] = [
+  { key: 'showGlobeFill', label: 'Ocean', icon: '🌊', type: 'bool' },
   { key: 'showCountries', label: 'Countries', icon: '🌍', type: 'bool' },
+  { key: 'showBorders', label: 'Borders', icon: '🔲', type: 'bool' },
   { key: 'showCities', label: 'Cities', icon: '🏙️', type: 'bool' },
   { key: 'enableControls', label: 'Controls', icon: '🖱️', type: 'bool' },
   { key: 'glowIntensity', label: 'Glow', icon: '✨', type: 'range', min: 0, max: 3, step: 0.1 },

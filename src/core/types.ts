@@ -88,8 +88,12 @@ export interface GlobeConfig {
   enableControls?: boolean;
   /** Bloom strength for post-processing (default: 1.0) */
   bloomStrength?: number;
-  /** Show country fills (default: false for border-only) */
+  /** Show country fills (default: true) */
   showCountries?: boolean;
+  /** Show border lines (default: true) */
+  showBorders?: boolean;
+  /** Show globe fill / ocean (default: true) */
+  showGlobeFill?: boolean;
   /** Custom country color (overrides surface) */
   countryColor?: string;
   /** Custom globe fill color (overrides surface) */

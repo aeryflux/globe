@@ -217,7 +217,7 @@ export function applyGlobeMaterials(
   colors: SurfaceColors,
   config: GlobeConfig
 ): void {
-  const { showCountries = false, showCities = false, glowIntensity = 0.6, countryData, dataHighlightColor } = config;
+  const { showCountries = true, showBorders = true, showGlobeFill = true, showCities = false, glowIntensity = 0.6, countryData, dataHighlightColor } = config;
 
   // Build country data lookup (lowercase, normalized)
   const countryDataMap = new Map<string, { scale: number; color?: string }>();
@@ -233,8 +233,8 @@ export function applyGlobeMaterials(
 
   // Configure GlobeFill (ocean)
   if (index.globeMesh) {
-    index.globeMesh.visible = showCountries;
-    if (showCountries) {
+    index.globeMesh.visible = showGlobeFill;
+    if (showGlobeFill) {
       index.globeMesh.material = new THREE.MeshStandardMaterial({
         color: colors.globeFillColor,
         emissive: new THREE.Color(colors.globeFillColor).multiplyScalar(0.1),
@@ -435,7 +435,7 @@ export function applyGlobeMaterials(
 
   // Configure country borders with subtle glow
   for (const mesh of index.allBorderMeshes) {
-    mesh.visible = true;
+    mesh.visible = showBorders;
     mesh.material = new THREE.MeshStandardMaterial({
       color: colors.accent,
       emissive: colors.accent,
