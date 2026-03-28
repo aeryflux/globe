@@ -163,7 +163,7 @@ export function Globe({
     try {
       renderer = new THREE.WebGLRenderer({
         antialias: true,
-        alpha: true,
+        alpha: false, // Gradient background shader handles the background
       });
     } catch (e) {
       debugWarn('WebGL context creation failed:', e);
@@ -180,7 +180,7 @@ export function Globe({
 
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setClearColor(0x000000, 0);
+    // No clear color — gradient shader mesh handles background
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.5;
     container.appendChild(renderer.domElement);
