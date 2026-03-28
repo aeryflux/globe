@@ -454,9 +454,7 @@ export function applyGlobeMaterials(
  */
 export function createGlobeScene(colors: SurfaceColors): THREE.Scene {
   const scene = new THREE.Scene();
-  scene.background = null; // Gradient mesh handles background
-
-  // Fullscreen gradient background (top: dark, bottom: deep blue)
+  // Gradient background (top: dark, bottom: deep blue)
   const bgGeometry = new THREE.PlaneGeometry(2, 2);
   const bgMaterial = new THREE.ShaderMaterial({
     depthWrite: false,

@@ -180,7 +180,7 @@ export function Globe({
 
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    // No clear color — gradient shader mesh handles background
+    renderer.setClearColor(0x06060e, 1); // Match gradient top color
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.5;
     container.appendChild(renderer.domElement);
