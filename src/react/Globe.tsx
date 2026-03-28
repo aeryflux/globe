@@ -74,6 +74,7 @@ export function Globe({
     camera: THREE.PerspectiveCamera;
     renderer: THREE.WebGLRenderer;
     composer: EffectComposer | null;
+    bloomPass: any | null;
     controls: OrbitControls | null;
     model: THREE.Group | null;
     index: GlobeIndex | null;
@@ -111,11 +112,13 @@ export function Globe({
   // Refs for animation loop (avoids recreating scene on prop changes)
   const rotationSpeedRef = useRef(rotationSpeed);
   const glowIntensityRef = useRef(glowIntensity);
+  const bloomStrengthRef = useRef(bloomStrength);
   const bassRef = useRef(bass);
   const energyRef = useRef(energy);
   const ambientIntensityRef = useRef(ambientIntensity);
   rotationSpeedRef.current = rotationSpeed;
   glowIntensityRef.current = glowIntensity;
+  bloomStrengthRef.current = bloomStrength;
   bassRef.current = bass;
   energyRef.current = energy;
   ambientIntensityRef.current = ambientIntensity;
@@ -212,10 +215,11 @@ export function Globe({
     let composer: EffectComposer | null = null;
     const useDirectRender = isLightTheme || forceTransparent;
 
+    let bloomPass: any = null;
     if (!useDirectRender) {
       composer = new EffectComposer(renderer);
       composer.addPass(new RenderPass(scene, camera));
-      const bloomPass = new UnrealBloomPass(
+      bloomPass = new UnrealBloomPass(
         new THREE.Vector2(width, height),
         bloomStrength * 1.5,
         0.8,
@@ -251,6 +255,7 @@ export function Globe({
       camera,
       renderer,
       composer,
+      bloomPass,
       controls,
       model: null,
       index: null,
@@ -298,6 +303,11 @@ export function Globe({
       // Update controls if enabled
       if (sceneRef.current.controls) {
         sceneRef.current.controls.update();
+      }
+
+      // Update bloom in real-time
+      if (sceneRef.current.bloomPass) {
+        sceneRef.current.bloomPass.strength = bloomStrengthRef.current * 1.5;
       }
 
       if (sceneRef.current.model && sceneRef.current.index) {
