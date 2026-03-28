@@ -413,6 +413,27 @@ export function Globe({
       if (intersects.length > 0) {
         const mesh = intersects[0].object as THREE.Mesh;
         let name = mesh.name.replace(/^country_|^cell_/i, '').replace(/_\d+$/, '').replace(/_/g, ' ');
+        const bordersKey = mesh.name.toLowerCase().replace(/^country_|^cell_/i, '').replace(/_\d+$/, '');
+
+        // Skip if same country already selected
+        if ((sceneRef.current as any)._selectedCountry === bordersKey) return;
+
+        // Clear previous aura (clones + decay functions)
+        const oldClones = (sceneRef.current as any)._auraClones as THREE.Mesh[] | undefined;
+        if (oldClones) {
+          for (const c of oldClones) {
+            c.parent?.remove(c);
+            (c.material as THREE.Material).dispose();
+            c.geometry.dispose();
+            (c as any)._auraDecay = null;
+          }
+          (sceneRef.current as any)._auraClones = [];
+        }
+        // Reset all country/border decay
+        for (const m of sceneRef.current.index.allCountryMeshes) (m as any)._auraDecay = null;
+        for (const m of sceneRef.current.index.allBorderMeshes) { (m as any)._auraDecay = null; m.scale.setScalar(1); }
+
+        (sceneRef.current as any)._selectedCountry = bordersKey;
         const accent = new THREE.Color(colors.accent);
         const startTime = sceneRef.current.time;
 
@@ -439,11 +460,8 @@ export function Globe({
           };
         }
 
-        // Kaspersky aura: border cascade pulse (3 sine layers, slow decay)
-        const bordersKey = mesh.name.toLowerCase().replace(/^country_|^cell_/i, '').replace(/_\d+$/, '');
-        const borderMeshes = sceneRef.current.index.countryToBorder.get(bordersKey) || [];
-        console.log('[Globe] Aura:', bordersKey, '| borders found:', borderMeshes.length, '| keys:', [...sceneRef.current.index.countryToBorder.keys()].slice(0, 5));
         // Kaspersky aura: clone borders into 3 expanding rings
+        const borderMeshes = sceneRef.current.index.countryToBorder.get(bordersKey) || [];
         const AURA_LAYERS = 3;
         const auraClones: THREE.Mesh[] = [];
         for (const bm of borderMeshes) {
