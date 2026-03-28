@@ -552,6 +552,98 @@ export function animateBorderPulse(
   }
 }
 
+// Reusable vectors for ambient wave
+const _waveDir1 = new THREE.Vector3();
+const _waveDir2 = new THREE.Vector3();
+const _meshCenter = new THREE.Vector3();
+const _emissiveColor = new THREE.Color();
+
+/**
+ * Animate ambient wave illumination on idle countries.
+ * Two slow waves sweep across the globe for organic glow.
+ */
+export function animateAmbientWave(
+  index: GlobeIndex,
+  time: number,
+  accentColor: string = '#00ff88',
+  intensity: number = 0.4
+): void {
+  // Two rotating wave directions
+  const t = time * 0.04;
+  _waveDir1.set(Math.cos(t), 0.2, Math.sin(t)).normalize();
+  _waveDir2.set(Math.sin(t * 0.7 + 2), 0.2, Math.cos(t * 0.7 + 2)).normalize();
+
+  const phase1 = (time * 0.1) % 1;
+  const phase2 = ((time * 0.07) + 0.5) % 1;
+  const front1 = -1 + phase1 * 2;
+  const front2 = -1 + phase2 * 2;
+  const waveWidth = 0.6;
+  const halfW2 = 2 * waveWidth * waveWidth;
+
+  // Breathe
+  const breathe = (Math.sin(time * 0.25 * Math.PI * 2) + 1) * 0.5 * 0.12;
+
+  _emissiveColor.set(accentColor);
+  const aR = _emissiveColor.r;
+  const aG = _emissiveColor.g;
+  const aB = _emissiveColor.b;
+
+  for (const mesh of index.allCountryMeshes) {
+    const mat = mesh.material as THREE.MeshStandardMaterial;
+    if (!mat.isMeshStandardMaterial) continue;
+
+    // Get mesh center for wave projection
+    if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+    if (mesh.geometry.boundingBox) {
+      mesh.geometry.boundingBox.getCenter(_meshCenter);
+      _meshCenter.normalize();
+    }
+
+    const proj1 = _meshCenter.dot(_waveDir1);
+    const dist1 = proj1 - front1;
+    const i1 = Math.exp(-(dist1 * dist1) / halfW2);
+
+    const proj2 = _meshCenter.dot(_waveDir2);
+    const dist2 = proj2 - front2;
+    const i2 = Math.exp(-(dist2 * dist2) / halfW2);
+
+    const combined = Math.min(1, i1 * 0.5 + i2 * 0.4 + breathe);
+    const glow = combined * intensity;
+
+    // Apply wave glow to emissive
+    mat.emissive.setRGB(
+      aR * (0.05 + combined * 0.3),
+      aG * (0.05 + combined * 0.3),
+      aB * (0.05 + combined * 0.3)
+    );
+    mat.emissiveIntensity = 0.1 + glow * 1.2;
+  }
+
+  // Border glow follows wave
+  for (const mesh of index.allBorderMeshes) {
+    const mat = mesh.material as THREE.MeshStandardMaterial;
+    if (!mat.isMeshStandardMaterial) continue;
+
+    if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+    if (mesh.geometry.boundingBox) {
+      mesh.geometry.boundingBox.getCenter(_meshCenter);
+      _meshCenter.normalize();
+    }
+
+    const proj1 = _meshCenter.dot(_waveDir1);
+    const dist1 = proj1 - front1;
+    const i1 = Math.exp(-(dist1 * dist1) / halfW2);
+    const combined = Math.min(1, i1 * 0.6 + breathe);
+
+    mat.emissive.setRGB(
+      aR * (0.08 + combined * 0.5),
+      aG * (0.08 + combined * 0.5),
+      aB * (0.08 + combined * 0.5)
+    );
+    mat.emissiveIntensity = 0.2 + combined * intensity * 1.5;
+  }
+}
+
 /** Data highlight state for animation */
 export interface DataHighlightState {
   mesh: THREE.Mesh;

@@ -23,6 +23,7 @@ import {
   createGlobeCamera,
   animateGlobeRotation,
   animateBorderPulse,
+  animateAmbientWave,
   animateDataHighlights,
   animateCityHighlights,
   resetAllCountries,
@@ -292,7 +293,12 @@ export function Globe({
         if (!enableControls) {
           animateGlobeRotation(sceneRef.current.model, t, rotationSpeedRef.current);
         }
-        animateBorderPulse(sceneRef.current.index, t, glowIntensityRef.current);
+        // Ambient wave on idle countries (when no data highlights active)
+        if (sceneRef.current.highlights.size === 0) {
+          animateAmbientWave(sceneRef.current.index, t, colors.accent, glowIntensityRef.current * 0.5);
+        } else {
+          animateBorderPulse(sceneRef.current.index, t, glowIntensityRef.current);
+        }
 
         // Animate data highlights if any
         if (sceneRef.current.highlights.size > 0) {
