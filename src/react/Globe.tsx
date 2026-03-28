@@ -329,8 +329,11 @@ export function Globe({
         for (const mesh of idx.allCityMeshes) mesh.visible = showCitiesRef.current;
         if (idx.globeMesh) idx.globeMesh.visible = showGlobeFillRef.current;
 
-        // Decay aura effects on clicked countries
+        // Decay aura effects on clicked countries + borders (Kaspersky cascade)
         for (const mesh of idx.allCountryMeshes) {
+          if ((mesh as any)._auraDecay) (mesh as any)._auraDecay();
+        }
+        for (const mesh of idx.allBorderMeshes) {
           if ((mesh as any)._auraDecay) (mesh as any)._auraDecay();
         }
 
@@ -399,32 +402,47 @@ export function Globe({
       if (intersects.length > 0) {
         const mesh = intersects[0].object as THREE.Mesh;
         let name = mesh.name.replace(/^country_|^cell_/i, '').replace(/_\d+$/, '').replace(/_/g, ' ');
-        // Aura effect: pulse the clicked country
+        const accent = new THREE.Color(colors.accent);
+        const startTime = sceneRef.current.time;
+
+        // Country glow spike
         const mat = mesh.material as THREE.MeshStandardMaterial;
         if (mat.isMeshStandardMaterial) {
-          const accent = new THREE.Color(colors.accent);
           mat.emissive.copy(accent);
-          mat.emissiveIntensity = 2.0;
-          // Decay over time via animation loop
-          const startTime = sceneRef.current.time;
-          const originalIntensity = mat.emissiveIntensity;
-          const decayFn = () => {
+          mat.emissiveIntensity = 2.5;
+          (mesh as any)._auraDecay = () => {
             if (!sceneRef.current) return;
             const elapsed = sceneRef.current.time - startTime;
-            mat.emissiveIntensity = Math.max(0.2, originalIntensity * Math.exp(-elapsed * 2));
+            // Slow decay (5 seconds) with pulsing
+            const decay = Math.exp(-elapsed * 0.4);
+            const pulse = 1 + Math.sin(elapsed * 4) * 0.3 * decay;
+            mat.emissiveIntensity = Math.max(0.15, 2.5 * decay * pulse);
           };
-          // Store decay function to be called in render loop
-          (mesh as any)._auraDecay = decayFn;
-          (mesh as any)._auraStart = startTime;
         }
-        // Find and pulse borders
+
+        // Kaspersky aura: border cascade pulse (3 sine layers, slow decay)
         const bordersKey = mesh.name.replace(/^country_|^cell_/i, '').replace(/_\d+$/, '');
         const borderMeshes = sceneRef.current.index.countryToBorder.get(bordersKey) || [];
         for (const bm of borderMeshes) {
           const bMat = bm.material as THREE.MeshStandardMaterial;
-          if (bMat.isMeshStandardMaterial) {
-            bMat.emissiveIntensity = 3.0;
-          }
+          if (!bMat.isMeshStandardMaterial) continue;
+          bMat.emissive.copy(accent);
+          bMat.emissiveIntensity = 3.0;
+          // Kaspersky aura: 3 cascading sine waves + slow decay
+          (bm as any)._auraDecay = () => {
+            if (!sceneRef.current) return;
+            const elapsed = sceneRef.current.time - startTime;
+            const decay = Math.exp(-elapsed * 0.3); // 7+ seconds visible
+            // 3 sine layers at different frequencies (Kaspersky cascade)
+            const wave1 = Math.max(0, Math.sin(elapsed * 2.0)) * 0.4;
+            const wave2 = Math.max(0, Math.sin(elapsed * 3.2 + 1.0)) * 0.3;
+            const wave3 = Math.max(0, Math.sin(elapsed * 1.4 + 2.0)) * 0.2;
+            const aura = (wave1 + wave2 + wave3) * decay;
+            bMat.emissiveIntensity = 0.3 + aura * 3.0;
+            // Scale pulse: border subtly expands on wave peaks
+            const scalePulse = 1.0 + aura * 0.04;
+            bm.scale.setScalar(scalePulse);
+          };
         }
         if (onCountryClick) onCountryClick(name);
         debugLog('Country clicked:', name);
