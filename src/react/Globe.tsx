@@ -120,6 +120,7 @@ export function Globe({
     energy = 0,
     ambientColor,
     ambientIntensity = 0.4,
+    ambientExtrusion = 0,
   } = config;
 
   // Refs for animation loop (avoids recreating scene on prop changes)
@@ -129,6 +130,7 @@ export function Globe({
   const bassRef = useRef(bass);
   const energyRef = useRef(energy);
   const ambientIntensityRef = useRef(ambientIntensity);
+  const ambientExtrusionRef = useRef(ambientExtrusion);
   const showCountriesRef = useRef(showCountries);
   const showBordersRef = useRef(config.showBorders ?? true);
   const showGlobeFillRef = useRef(config.showGlobeFill ?? true);
@@ -147,16 +149,19 @@ export function Globe({
   bassRef.current = bass;
   energyRef.current = energy;
   ambientIntensityRef.current = ambientIntensity;
+  ambientExtrusionRef.current = ambientExtrusion;
   gradientTopRef.current = config.gradientTop || '#06060e';
   gradientBottomRef.current = config.gradientBottom || '#0e1430';
   globeFillTintRef.current = config.globeFillTint || '';
   ambientColorRef.current = ambientColor || colors.accent;
 
-  // Structural key: which countries are highlighted (triggers full rebuild)
-  // Only country names — values (scale/extrusion) are set once, animation is internal
+  // Full data key: rebuild highlights when countries OR their values change (hola wave)
   const countryDataKey = useMemo(() => {
     if (!countryData) return '';
-    return Object.keys(countryData).sort().join('|');
+    return Object.entries(countryData)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${k}:${v.scale.toFixed(2)}`)
+      .join('|');
   }, [countryData]);
 
   // Create stable key for cityData to detect actual changes
@@ -396,16 +401,17 @@ export function Globe({
         if (!enableControls) {
           animateGlobeRotation(sceneRef.current.model, t, rotationSpeedRef.current, bassRef.current, energyRef.current);
         }
-        // Ambient wave on idle countries (when no data highlights active)
-        if (sceneRef.current.highlights.size === 0) {
-          animateAmbientWave(
-            sceneRef.current.index, t,
-            ambientColorRef.current,
-            ambientIntensityRef.current,
-            bassRef.current,
-            energyRef.current
-          );
-        } else {
+        // Ambient wave always runs — provides base glow on non-highlighted countries
+        // When highlights exist, highlighted countries are overridden by animateDataHighlights
+        animateAmbientWave(
+          sceneRef.current.index, t,
+          ambientColorRef.current,
+          ambientIntensityRef.current,
+          bassRef.current,
+          energyRef.current,
+          ambientExtrusionRef.current
+        );
+        if (sceneRef.current.highlights.size > 0) {
           animateBorderPulse(sceneRef.current.index, t, glowIntensityRef.current);
         }
 

@@ -112,6 +112,8 @@ export interface GlobeConfig {
   ambientColor?: string;
   /** Ambient wave intensity (0-1, default: 0.4) */
   ambientIntensity?: number;
+  /** Ambient wave extrusion strength (0 = off, 1 = full hola) */
+  ambientExtrusion?: number;
   /** Music reactivity: bass level (0-1.5) */
   bass?: number;
   /** Music reactivity: mid level (0-1) */

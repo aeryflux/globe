@@ -691,7 +691,8 @@ export function animateAmbientWave(
   accentColor: string = '#00ff88',
   intensity: number = 0.4,
   bass: number = 0,
-  energy: number = 0
+  energy: number = 0,
+  extrusion: number = 0
 ): void {
   // Speed scales with bass/energy for music reactivity
   const speedMult = 1 + bass * 0.5 + energy * 0.3;
@@ -721,56 +722,57 @@ export function animateAmbientWave(
     const mat = mesh.material as THREE.MeshStandardMaterial;
     if (!mat.isMeshStandardMaterial) continue;
 
-    // Get mesh center for wave projection
-    if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
-    if (mesh.geometry.boundingBox) {
-      mesh.geometry.boundingBox.getCenter(_meshCenter);
-      _meshCenter.normalize();
-    }
+    // Use cached radialDirection from originalStates (no per-frame bbox computation)
+    const originalState = index.originalStates.get(mesh);
+    if (!originalState) continue;
+    const rd = originalState.radialDirection;
 
-    const proj1 = _meshCenter.dot(_waveDir1);
+    const proj1 = rd.dot(_waveDir1);
     const dist1 = proj1 - front1;
     const i1 = Math.exp(-(dist1 * dist1) / halfW2);
 
-    const proj2 = _meshCenter.dot(_waveDir2);
+    const proj2 = rd.dot(_waveDir2);
     const dist2 = proj2 - front2;
     const i2 = Math.exp(-(dist2 * dist2) / halfW2);
 
-    const combined = Math.min(1, i1 * 0.5 + i2 * 0.4 + breathe);
-    const glow = combined * intensity;
+    const combined = Math.min(1, i1 * 0.6 + i2 * 0.5 + breathe);
 
-    // Apply wave glow to emissive (boosted by music)
-    const colorBoost = combined * 0.3 * intensityMult;
+    // Emissive glow
+    const colorBoost = combined * 0.2 * intensityMult;
     mat.emissive.setRGB(
-      aR * (0.05 + colorBoost),
-      aG * (0.05 + colorBoost),
-      aB * (0.05 + colorBoost)
+      aR * (0.03 + colorBoost),
+      aG * (0.03 + colorBoost),
+      aB * (0.03 + colorBoost)
     );
-    mat.emissiveIntensity = 0.1 + glow * 1.2 * intensityMult;
+    mat.emissiveIntensity = (0.1 + combined * 0.6) * intensityMult;
+
+    // Hola extrusion
+    if (extrusion > 0 && combined > 0.2) {
+      const disp = combined * combined * extrusion * 0.15;
+      mesh.position.copy(originalState.position)
+        .addScaledVector(rd, disp);
+    }
   }
 
-  // Border glow follows wave
+  // Border glow follows wave (using cached radialDirection)
   for (const mesh of index.allBorderMeshes) {
     const mat = mesh.material as THREE.MeshStandardMaterial;
     if (!mat.isMeshStandardMaterial) continue;
 
-    if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
-    if (mesh.geometry.boundingBox) {
-      mesh.geometry.boundingBox.getCenter(_meshCenter);
-      _meshCenter.normalize();
-    }
+    const bs = index.originalStates.get(mesh);
+    if (!bs) continue;
 
-    const proj1 = _meshCenter.dot(_waveDir1);
+    const proj1 = bs.radialDirection.dot(_waveDir1);
     const dist1 = proj1 - front1;
     const i1 = Math.exp(-(dist1 * dist1) / halfW2);
     const combined = Math.min(1, i1 * 0.6 + breathe);
 
     mat.emissive.setRGB(
-      aR * (0.08 + combined * 0.5),
-      aG * (0.08 + combined * 0.5),
-      aB * (0.08 + combined * 0.5)
+      aR * (0.03 + combined * 0.2),
+      aG * (0.03 + combined * 0.2),
+      aB * (0.03 + combined * 0.2)
     );
-    mat.emissiveIntensity = 0.2 + combined * intensity * 1.5;
+    mat.emissiveIntensity = (0.1 + combined * 0.5) * intensityMult;
   }
 }
 
@@ -843,6 +845,7 @@ export function animateDataHighlights(
     // Emissive pulse is the main visual — strong enough for bloom
     const baseEmissive = 0.3 + data.intensity * 0.6;
     mat.emissiveIntensity = baseEmissive * (0.3 + breathingPulse * 0.7) * (0.5 + entryProgress * 0.5);
+
 
     // Borders follow with same displacement
     for (const borderMesh of data.borderMeshes) {
