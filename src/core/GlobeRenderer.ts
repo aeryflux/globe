@@ -831,23 +831,20 @@ export function animateDataHighlights(
     const breathe2 = Math.sin(time * breathingSpeed * 0.7 + phaseOffset * 1.3) * 0.4;
     const breathingPulse = 0.5 + 0.5 * (breathe1 + breathe2) / 1.4; // range ~0.15 to ~0.85
 
-    // Radial displacement — visible but clamped to avoid leaving the globe surface
+    // Minimal radial displacement — just enough to feel alive, no lateral drift
     const extrusionValue = data.extrusion ?? data.intensity;
-    const baseDisplacement = Math.min(extrusionValue * 0.12, 0.08);
-    const animatedDisplacement = baseDisplacement * entryEase * (0.4 + breathingPulse * 0.6);
+    const animatedDisplacement = Math.min(extrusionValue * 0.03, 0.025) * entryEase * (0.5 + breathingPulse * 0.5);
 
-    // Apply position offset along radial direction
+    // Apply position: stay close to original, no scale change
     data.mesh.position.copy(originalState.position)
       .addScaledVector(originalState.radialDirection, animatedDisplacement);
-
-    // Keep original scale
     data.mesh.scale.copy(originalState.scale);
 
-    // Emissive intensity pulse — stronger variation
-    const baseEmissive = 0.4 + data.intensity * 0.5;
-    mat.emissiveIntensity = baseEmissive * (0.4 + breathingPulse * 0.6) * (0.5 + entryProgress * 0.5);
+    // Emissive pulse is the main visual — strong enough for bloom
+    const baseEmissive = 0.3 + data.intensity * 0.6;
+    mat.emissiveIntensity = baseEmissive * (0.3 + breathingPulse * 0.7) * (0.5 + entryProgress * 0.5);
 
-    // Make ALL borders follow with their OWN radial direction
+    // Borders follow with same displacement
     for (const borderMesh of data.borderMeshes) {
       const borderOriginal = index.originalStates.get(borderMesh);
       if (borderOriginal) {
@@ -860,7 +857,7 @@ export function animateDataHighlights(
       if (borderMat.isMeshStandardMaterial) {
         borderMat.color.set(data.color);
         borderMat.emissive.set(data.color);
-        borderMat.emissiveIntensity = glowIntensity * (1.5 + data.intensity) * (0.4 + breathingPulse * 0.6);
+        borderMat.emissiveIntensity = glowIntensity * (1.2 + data.intensity) * (0.3 + breathingPulse * 0.7);
       }
     }
 
