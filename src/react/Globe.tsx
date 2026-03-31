@@ -152,13 +152,11 @@ export function Globe({
   globeFillTintRef.current = config.globeFillTint || '';
   ambientColorRef.current = ambientColor || colors.accent;
 
-  // Create stable key for countryData to detect actual changes
+  // Structural key: which countries are highlighted (triggers full rebuild)
+  // Only country names — values (scale/extrusion) are set once, animation is internal
   const countryDataKey = useMemo(() => {
     if (!countryData) return '';
-    return Object.entries(countryData)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([k, v]) => `${k}:${v.scale}:${v.color || ''}`)
-      .join('|');
+    return Object.keys(countryData).sort().join('|');
   }, [countryData]);
 
   // Create stable key for cityData to detect actual changes

@@ -806,12 +806,13 @@ export function animateDataHighlights(
   time: number,
   glowIntensity: number = 0.5
 ): void {
+  let countryIndex = 0;
   for (const [, data] of highlights) {
     const mat = data.mesh.material as THREE.MeshStandardMaterial;
-    if (!mat.isMeshStandardMaterial) continue;
+    if (!mat.isMeshStandardMaterial) { countryIndex++; continue; }
 
     const originalState = index.originalStates.get(data.mesh);
-    if (!originalState) continue;
+    if (!originalState) { countryIndex++; continue; }
 
     // Time since this highlight started
     const timeSinceStart = time - data.startTime;
@@ -821,15 +822,19 @@ export function animateDataHighlights(
     const entryProgress = Math.min(1, Math.max(0, (timeSinceStart - entryDelay) / 0.4));
     const entryEase = 1 - Math.pow(1 - entryProgress, 3); // ease-out cubic
 
-    // Breathing pulse (continuous)
-    const breathingSpeed = 1.5 + data.intensity * 0.5;
-    const breathingPulse = 0.85 + 0.15 * Math.sin(time * breathingSpeed);
+    // Per-country phase offset for wave effect (not synchronized)
+    const phaseOffset = countryIndex * 1.1;
 
-    // Radial displacement - move country outward based on extrusion value (or intensity as fallback)
-    // Extrusion allows data-driven displacement independent of visual intensity
+    // Breathing pulse — wider range for visible animation
+    const breathingSpeed = 1.2 + data.intensity * 0.8;
+    const breathe1 = Math.sin(time * breathingSpeed + phaseOffset);
+    const breathe2 = Math.sin(time * breathingSpeed * 0.7 + phaseOffset * 1.3) * 0.4;
+    const breathingPulse = 0.5 + 0.5 * (breathe1 + breathe2) / 1.4; // range ~0.15 to ~0.85
+
+    // Radial displacement — strong enough to be visible
     const extrusionValue = data.extrusion ?? data.intensity;
-    const baseDisplacement = extrusionValue * 0.06;
-    const animatedDisplacement = baseDisplacement * entryEase * breathingPulse;
+    const baseDisplacement = extrusionValue * 0.35;
+    const animatedDisplacement = baseDisplacement * entryEase * (0.3 + breathingPulse * 0.7);
 
     // Apply position offset along radial direction
     data.mesh.position.copy(originalState.position)
@@ -838,15 +843,14 @@ export function animateDataHighlights(
     // Keep original scale
     data.mesh.scale.copy(originalState.scale);
 
-    // Emissive intensity pulse
-    const baseEmissive = 0.3 + data.intensity * 0.4;
-    mat.emissiveIntensity = baseEmissive * breathingPulse * (0.5 + entryProgress * 0.5);
+    // Emissive intensity pulse — stronger variation
+    const baseEmissive = 0.4 + data.intensity * 0.5;
+    mat.emissiveIntensity = baseEmissive * (0.4 + breathingPulse * 0.6) * (0.5 + entryProgress * 0.5);
 
     // Make ALL borders follow with their OWN radial direction
     for (const borderMesh of data.borderMeshes) {
       const borderOriginal = index.originalStates.get(borderMesh);
       if (borderOriginal) {
-        // Apply displacement using BORDER's own radial direction
         borderMesh.position.copy(borderOriginal.position)
           .addScaledVector(borderOriginal.radialDirection, animatedDisplacement);
         borderMesh.scale.copy(borderOriginal.scale);
@@ -856,9 +860,11 @@ export function animateDataHighlights(
       if (borderMat.isMeshStandardMaterial) {
         borderMat.color.set(data.color);
         borderMat.emissive.set(data.color);
-        borderMat.emissiveIntensity = glowIntensity * (1.5 + data.intensity) * breathingPulse;
+        borderMat.emissiveIntensity = glowIntensity * (1.5 + data.intensity) * (0.4 + breathingPulse * 0.6);
       }
     }
+
+    countryIndex++;
   }
 }
 
