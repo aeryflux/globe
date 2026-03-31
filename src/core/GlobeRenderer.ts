@@ -831,10 +831,10 @@ export function animateDataHighlights(
     const breathe2 = Math.sin(time * breathingSpeed * 0.7 + phaseOffset * 1.3) * 0.4;
     const breathingPulse = 0.5 + 0.5 * (breathe1 + breathe2) / 1.4; // range ~0.15 to ~0.85
 
-    // Radial displacement — strong enough to be visible
+    // Radial displacement — visible but clamped to avoid leaving the globe surface
     const extrusionValue = data.extrusion ?? data.intensity;
-    const baseDisplacement = extrusionValue * 0.35;
-    const animatedDisplacement = baseDisplacement * entryEase * (0.3 + breathingPulse * 0.7);
+    const baseDisplacement = Math.min(extrusionValue * 0.12, 0.08);
+    const animatedDisplacement = baseDisplacement * entryEase * (0.4 + breathingPulse * 0.6);
 
     // Apply position offset along radial direction
     data.mesh.position.copy(originalState.position)
