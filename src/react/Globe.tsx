@@ -226,6 +226,23 @@ export function Globe({
       return;
     }
 
+    // Handle context loss gracefully instead of crashing
+    const handleContextLost = (e: Event) => {
+      e.preventDefault();
+      debugWarn('WebGL context lost at runtime');
+      if (sceneRef.current?.animationId) {
+        cancelAnimationFrame(sceneRef.current.animationId);
+        sceneRef.current.animationId = null;
+      }
+    };
+
+    const handleContextRestored = () => {
+      debugLog('WebGL context restored');
+    };
+
+    renderer.domElement.addEventListener('webglcontextlost', handleContextLost);
+    renderer.domElement.addEventListener('webglcontextrestored', handleContextRestored);
+
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setClearColor(0x06060e, 1); // Match gradient top color
@@ -625,14 +642,21 @@ export function Globe({
     return () => {
       window.removeEventListener('resize', handleResize);
       renderer.domElement.removeEventListener('click', handleClick);
+      renderer.domElement.removeEventListener('webglcontextlost', handleContextLost);
+      renderer.domElement.removeEventListener('webglcontextrestored', handleContextRestored);
 
       if (sceneRef.current?.animationId) {
         cancelAnimationFrame(sceneRef.current.animationId);
       }
 
       if (controls) controls.dispose();
-      renderer.dispose();
       if (composer) composer.dispose();
+
+      // Force-release the GL context so Chrome frees the slot immediately
+      const gl = renderer.getContext();
+      const loseExt = gl.getExtension('WEBGL_lose_context');
+      if (loseExt) loseExt.loseContext();
+      renderer.dispose();
 
       if (container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);

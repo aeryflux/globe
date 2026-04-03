@@ -14,9 +14,9 @@ export function checkWebGLSupport(): boolean {
     if (!gl) return false;
     if (gl.isContextLost()) return false;
 
-    // Clean up
-    const loseContext = gl.getExtension('WEBGL_lose_context');
-    if (loseContext) loseContext.loseContext();
+    // Let the canvas be GC'd naturally — do NOT call loseContext() here.
+    // Calling loseContext() signals Chrome that this page causes context loss,
+    // and after enough signals Chrome blocks all future context creation.
 
     return true;
   } catch {
@@ -48,9 +48,8 @@ export function getWebGLSupport(): WebGLSupportResult {
       };
     }
 
-    // Clean up
-    const loseContext = gl.getExtension('WEBGL_lose_context');
-    if (loseContext) loseContext.loseContext();
+    // Let the canvas be GC'd naturally — do NOT call loseContext() here.
+    // Calling loseContext() poisons Chrome's per-page context tracking.
 
     return {
       supported: true,

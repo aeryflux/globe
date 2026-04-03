@@ -251,6 +251,15 @@ createIntroState, applyIntroAnimation
 // + all types
 ```
 
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup, build/test workflow,
+and pull request guidelines.
+
+## Changelog
+
+See [CHANGELOG.md](./CHANGELOG.md) for a detailed history of changes per version.
+
 ## License
 
 MIT - [AeryFlux](https://github.com/aeryflux)
