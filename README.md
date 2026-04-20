@@ -24,8 +24,16 @@ Portable 3D globe component for React and React Native (Expo). Built on Three.js
 
 ## Installation
 
+### React (Web)
+
 ```bash
 npm install @aeryflux/globe three
+```
+
+### React Native (Expo)
+
+```bash
+npm install @aeryflux/globe three expo-gl expo-three
 ```
 
 ## Quick Start
@@ -51,18 +59,45 @@ function App() {
 ### React Native (Expo)
 
 ```tsx
-import {
-  buildGlobeIndex,
-  applyGlobeMaterials,
-  getSurfaceColors,
-  createGlobeScene,
-  createGlobeCamera,
-  animateGlobeRotation,
-  animateBorderPulse,
-} from '@aeryflux/globe/react-native';
+import { Globe } from '@aeryflux/globe/react-native';
+
+export default function App() {
+  return (
+    <Globe
+      surface="dark"
+      showCountries
+      showBorders
+      introAnimation
+      rotationSpeed={0.0004}
+    />
+  );
+}
 ```
 
-The React Native export provides core animation functions for manual Three.js setup with `expo-gl` and `expo-three`.
+Model loads from CDN automatically — no assets to configure.
+
+#### Metro config
+
+Add a `metro.config.js` at the root of your Expo project:
+
+```js
+const { getDefaultConfig } = require('expo/metro-config');
+const path = require('path');
+
+const config = getDefaultConfig(__dirname);
+
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (moduleName === '@aeryflux/globe/react-native') {
+    return {
+      filePath: path.resolve(__dirname, 'node_modules/@aeryflux/globe/dist/react-native/index.js'),
+      type: 'sourceFile',
+    };
+  }
+  return context.resolveRequest(context, moduleName, platform);
+};
+
+module.exports = config;
+```
 
 ## Props
 
@@ -213,7 +248,7 @@ Models are served from jsDelivr CDN by default.
 
 ```tsx
 // Use a smaller model for mobile
-<Globe modelUrl="https://cdn.jsdelivr.net/npm/@aeryflux/globe@0.7.3/models/atlas_hex_subdiv_5.glb" />
+<Globe modelUrl="https://cdn.jsdelivr.net/npm/@aeryflux/globe@0.8.0/models/atlas_hex_subdiv_5.glb" />
 
 // Self-host models
 <Globe modelUrl="/models/atlas_hex_subdiv_7.glb" />
@@ -241,6 +276,8 @@ animateDataHighlights, animateCityHighlights
 ### `@aeryflux/globe/react-native`
 
 ```ts
+Globe, GlobeNativeProps
+// Core renderer utilities (for custom integrations)
 buildGlobeIndex, getSurfaceColors, applyGlobeMaterials
 createGlobeScene, createGlobeCamera
 animateGlobeRotation, animateBorderPulse, animateAmbientWave
