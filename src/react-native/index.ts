@@ -1,16 +1,25 @@
 /**
- * @aeryflux/globe/react-native - React Native components for Expo
+ * @aeryflux/globe/react-native
  *
- * Note: This is a placeholder. The full implementation requires:
- * - expo-gl
- * - expo-three
- * - expo-asset
+ * Standalone 3D globe for Expo (React Native).
  *
- * For now, exports types and utilities that work cross-platform.
- * Full Expo component will be added in a future version.
+ * Peer dependencies: expo-gl, expo-three, three
+ *
+ * Usage:
+ * ```tsx
+ * import { Globe } from '@aeryflux/globe/react-native';
+ *
+ * <Globe surface="dark" showCountries rotationSpeed={0.0004} />
+ * ```
+ *
+ * For custom integrations (custom scene, materials, etc.) the core
+ * renderer utilities are also exported below.
  */
 
-// Re-export core types and utilities
+export { Globe } from './Globe';
+export type { GlobeNativeProps } from './Globe';
+
+// Core types
 export type {
   SurfaceId,
   GlobeConfig,
@@ -24,6 +33,7 @@ export type {
 
 export { SURFACES, GLOBE_MODELS } from '../core/types';
 
+// Core renderer utilities (for custom integrations)
 export {
   buildGlobeIndex,
   getSurfaceColors,
@@ -47,19 +57,3 @@ export {
   type IntroState,
   type SceneRefs,
 } from '../core/GlobeRenderer';
-
-/**
- * Globe component for React Native (Expo)
- *
- * Coming soon - use GlobeBackground from Atlas as reference implementation.
- *
- * Usage with Expo:
- * ```tsx
- * import { GLView } from 'expo-gl';
- * import { Renderer } from 'expo-three';
- * import { buildGlobeIndex, applyGlobeMaterials } from '@aeryflux/globe/react-native';
- *
- * // See Atlas GlobeBackground.tsx for full implementation
- * ```
- */
-export const Globe = null; // Placeholder - full implementation coming soon

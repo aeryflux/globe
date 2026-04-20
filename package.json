@@ -39,7 +39,8 @@
   },
   "files": [
     "dist",
-    "models"
+    "models",
+    "react-native.js"
   ],
   "scripts": {
     "build": "tsup",

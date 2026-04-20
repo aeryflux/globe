@@ -3,7 +3,7 @@
  */
 
 /** Package version - must match package.json */
-export const GLOBE_VERSION = '0.6.4';
+export const GLOBE_VERSION = '0.7.4';
 
 /** CDN base URL for hosted assets */
 export const GLOBE_CDN_BASE = `https://cdn.jsdelivr.net/npm/@aeryflux/globe@${GLOBE_VERSION}`;
