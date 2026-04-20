@@ -5,6 +5,22 @@ All notable changes to `@aeryflux/globe` are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.0] - 2026-04-20
+
+### Added
+
+- React Native / Expo support via `@aeryflux/globe/react-native`.
+- `Globe` component for Expo GL (`expo-gl` + `expo-three` as optional peers).
+- Loads globe model via CDN by default — zero asset config needed.
+- Full animation loop on mobile: rotation, border pulse, ambient wave, intro slide.
+- Props live via `propsRef` — no stale closures in the GL loop.
+- `react-native.js` Metro shim at package root for bundlers without `exports` map support.
+- Exports all core renderer utilities from the RN entry point for custom integrations.
+
+### Fixed
+
+- `GLOBE_VERSION` constant corrected to `0.7.4`.
+
 ## [0.7.4] - 2026-03-28
 
 ### Fixed
