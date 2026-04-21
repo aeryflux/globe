@@ -553,6 +553,34 @@ export function updateGlobeFillTint(
   mat.emissive.lerp(_lerpColorA.multiplyScalar(0.1), lerpFactor);
 }
 
+// Reusable colors for globeFill ambient (avoid allocations per frame)
+const _fillBaseColor = new THREE.Color();
+const _fillPulseColor = new THREE.Color('#0a1f3d'); // deep ocean blue for pulse
+
+/**
+ * Animate globe fill (ocean) with a slow ambient breathing effect.
+ * Pulses emissiveIntensity and shifts toward a deep blue-teal over time.
+ */
+export function animateGlobeFillAmbient(
+  index: GlobeIndex,
+  time: number,
+  baseColor: string,
+): void {
+  if (!index.globeMesh) return;
+  const mat = index.globeMesh.material as THREE.MeshStandardMaterial;
+  if (!mat.isMeshStandardMaterial) return;
+
+  // Slow breathing: ~12 s period
+  const breathe = (Math.sin(time * 0.5) * 0.5 + 0.5); // 0 → 1
+
+  // Emissive intensity: gentle pulse between 0.04 and 0.18
+  mat.emissiveIntensity = 0.04 + breathe * 0.14;
+
+  // Emissive color: lerp from base toward deep ocean blue
+  _fillBaseColor.set(baseColor);
+  mat.emissive.lerpColors(_fillBaseColor, _fillPulseColor, 0.25 + breathe * 0.35);
+}
+
 /**
  * Update accent point light color
  */

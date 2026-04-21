@@ -32,6 +32,7 @@ import {
   applyIntroAnimation,
   updateGradient,
   updateGlobeFillTint,
+  animateGlobeFillAmbient,
   updateAccentLight,
   type DataHighlightState,
   type CityHighlightState,
@@ -108,23 +109,42 @@ export const Globe = forwardRef<GlobeHandle, GlobeProps>(function Globe({
     intro: IntroState | null;
   } | null>(null);
 
-  /** State for active flyTo animation */
+  /** Active flyTo — Y-axis rotation only (horizontal spin, no tilt) */
   const flyToRef = useRef<{
-    startQuat: THREE.Quaternion;
-    targetQuat: THREE.Quaternion;
+    startRotY: number;
+    targetRotY: number;
     startTime: number;
     duration: number;
   } | null>(null);
 
+  /** Pending flyTo — queued while intro is still running */
+  const pendingFlyToRef = useRef<{ targetRotY: number; duration: number } | null>(null);
+
   useImperativeHandle(ref, () => ({
     flyTo: (countryName: string, duration = 1.5) => {
       if (!sceneRef.current?.model || !sceneRef.current?.index) return;
-      const { model, index, intro } = sceneRef.current;
-      // Don't interrupt intro animation
-      if (intro?.active) return;
+      const { model, index } = sceneRef.current;
 
-      // Find the country mesh using same name-normalization as highlight system
+      // Aliases: canonical name → possible mesh key variants
+      const flyToAliases: Record<string, string[]> = {
+        'south_korea':          ['republic_of_korea', 'korea_south', 'korea'],
+        'north_korea':          ['korea_north'],
+        'united_kingdom':       ['uk', 'great_britain', 'britain'],
+        'united_states':        ['usa', 'united_states_of_america', 'us'],
+        'united_arab_emirates': ['uae'],
+        'saudi_arabia':         ['kingdom_of_saudi_arabia', 'ksa'],
+        'south_africa':         ['republic_of_south_africa', 'rsa'],
+        'new_zealand':          ['nz'],
+        'ivory_coast':          ['cote_d_ivoire'],
+        'czech_republic':       ['czechia'],
+        'russia':               ['russian_federation'],
+        'vietnam':              ['viet_nam'],
+        'iran':                 ['islamic_republic_of_iran'],
+        'tanzania':             ['united_republic_of_tanzania'],
+      };
+
       const normalized = countryName.toLowerCase().replace(/\s+/g, '_');
+      const candidates = new Set([normalized, ...(flyToAliases[normalized] ?? [])]);
       let targetMesh: THREE.Mesh | null = null;
 
       for (const mesh of index.allCountryMeshes) {
@@ -136,25 +156,41 @@ export const Globe = forwardRef<GlobeHandle, GlobeProps>(function Globe({
         const parts = baseName.split('_');
         const lastPart = parts[parts.length - 1];
         const countryKey = /^\d+$/.test(lastPart) ? parts.slice(0, -1).join('_') : baseName;
-        if (countryKey === normalized || countryKey === normalized.replace(/_/g, '')) {
+        if (candidates.has(countryKey) || candidates.has(countryKey.replace(/_/g, ''))) {
           targetMesh = mesh;
           break;
         }
       }
       if (!targetMesh) return;
 
-      // Get mesh center in model-local space (direction on globe surface, unaffected by current rotation)
-      const worldPos = new THREE.Vector3();
-      targetMesh.getWorldPosition(worldPos);
-      model.worldToLocal(worldPos);
-      const dir = worldPos.normalize();
+      // Compute geographic centroid in model-local space (rotation-independent)
+      model.updateMatrixWorld(true);
+      if (!targetMesh.geometry.boundingBox) targetMesh.geometry.computeBoundingBox();
+      const geoCenter = new THREE.Vector3();
+      targetMesh.geometry.boundingBox!.getCenter(geoCenter);
+      geoCenter.applyMatrix4(targetMesh.matrixWorld); // geometry-local → world
+      model.worldToLocal(geoCenter);                   // world → model-local
+      const dir = geoCenter.normalize();
 
-      // Target quaternion: rotate globe so the country direction faces the camera (+Z)
-      const targetQuat = new THREE.Quaternion().setFromUnitVectors(dir, new THREE.Vector3(0, 0, 1));
+      // Y-axis only: rotate globe horizontally so the country faces the camera (+Z)
+      // Project dir onto XZ plane to get the longitude angle, ignore latitude
+      const rawTargetY = -Math.atan2(dir.x, dir.z);
+
+      if (sceneRef.current.intro?.active) {
+        // Queue for when intro ends — targetRotY is already computed
+        pendingFlyToRef.current = { targetRotY: rawTargetY, duration };
+        return;
+      }
+
+      // Shortest-path Y rotation (avoid spinning the long way around)
+      const currentY = model.rotation.y;
+      let delta = rawTargetY - currentY;
+      while (delta > Math.PI) delta -= 2 * Math.PI;
+      while (delta < -Math.PI) delta += 2 * Math.PI;
 
       flyToRef.current = {
-        startQuat: model.quaternion.clone(),
-        targetQuat,
+        startRotY: currentY,
+        targetRotY: currentY + delta,
         startTime: sceneRef.current.time,
         duration,
       };
@@ -185,6 +221,7 @@ export const Globe = forwardRef<GlobeHandle, GlobeProps>(function Globe({
     ambientColor,
     ambientIntensity = 0.4,
     ambientExtrusion = 0,
+    globeFillAnimation = true,
   } = config;
 
   // Refs for animation loop (avoids recreating scene on prop changes)
@@ -202,6 +239,7 @@ export const Globe = forwardRef<GlobeHandle, GlobeProps>(function Globe({
   const gradientTopRef = useRef(config.gradientTop || '#06060e');
   const gradientBottomRef = useRef(config.gradientBottom || '#0e1430');
   const globeFillTintRef = useRef(config.globeFillTint || '');
+  const globeFillAnimationRef = useRef(globeFillAnimation);
   const ambientColorRef = useRef(ambientColor || colors.accent);
   rotationSpeedRef.current = rotationSpeed;
   glowIntensityRef.current = glowIntensity;
@@ -217,6 +255,7 @@ export const Globe = forwardRef<GlobeHandle, GlobeProps>(function Globe({
   gradientTopRef.current = config.gradientTop || '#06060e';
   gradientBottomRef.current = config.gradientBottom || '#0e1430';
   globeFillTintRef.current = config.globeFillTint || '';
+  globeFillAnimationRef.current = globeFillAnimation;
   ambientColorRef.current = ambientColor || colors.accent;
 
   // Full data key: rebuild highlights when countries OR their values change (hola wave)
@@ -473,16 +512,37 @@ export const Globe = forwardRef<GlobeHandle, GlobeProps>(function Globe({
           updateGlobeFillTint(sceneRef.current.index, globeFillTintRef.current);
         }
 
+        // Globe fill ambient animation (breathing emissive pulse)
+        if (globeFillAnimationRef.current && sceneRef.current.index) {
+          animateGlobeFillAmbient(sceneRef.current.index, t, colors.globeFillColor);
+        }
+
         // Intro animation (slide + spin from left)
+        const wasIntroActive = sceneRef.current.intro?.active ?? false;
         if (sceneRef.current.intro?.active) {
           applyIntroAnimation(sceneRef.current.model, t, sceneRef.current.intro);
         }
+        // Flush pending flyTo the first frame after intro ends
+        if (wasIntroActive && !sceneRef.current.intro?.active && pendingFlyToRef.current) {
+          const { targetRotY, duration } = pendingFlyToRef.current;
+          pendingFlyToRef.current = null;
+          const currentY = sceneRef.current.model.rotation.y;
+          let delta = targetRotY - currentY;
+          while (delta > Math.PI) delta -= 2 * Math.PI;
+          while (delta < -Math.PI) delta += 2 * Math.PI;
+          flyToRef.current = {
+            startRotY: currentY,
+            targetRotY: currentY + delta,
+            startTime: t,
+            duration,
+          };
+        }
 
-        // FlyTo animation — SLERP globe orientation toward target country
+        // FlyTo animation — Y-axis lerp (horizontal spin only, no tilt)
         if (flyToRef.current) {
-          const { startQuat, targetQuat, startTime, duration } = flyToRef.current;
+          const { startRotY, targetRotY, startTime, duration } = flyToRef.current;
           const progress = Math.min((t - startTime) / duration, 1.0);
-          sceneRef.current.model.quaternion.slerpQuaternions(startQuat, targetQuat, easeInOutCubic(progress));
+          sceneRef.current.model.rotation.y = startRotY + (targetRotY - startRotY) * easeInOutCubic(progress);
           if (progress >= 1.0) flyToRef.current = null;
         }
 
@@ -1137,8 +1197,6 @@ export const Globe = forwardRef<GlobeHandle, GlobeProps>(function Globe({
       `}</style>
     </div>
   );
-}
-
 });
 
 export default Globe;

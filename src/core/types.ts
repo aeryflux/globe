@@ -58,13 +58,13 @@ export const SURFACES: Record<SurfaceId, SurfaceColors> = {
     accent: '#00ff88',
     background: '#050508',
     countryColor: '#e0e0e0',
-    globeFillColor: '#06060e',
+    globeFillColor: '#040d1a',
   },
   green: {
     accent: '#00ff88',
     background: '#050508',
     countryColor: '#c0c0c0',
-    globeFillColor: '#0a0a0f',
+    globeFillColor: '#05101e',
   },
   white: {
     accent: '#1a1a1a',
@@ -128,6 +128,8 @@ export interface GlobeConfig {
   gradientBottom?: string;
   /** Dynamic globe fill tint (overrides globeFillColor in real-time) */
   globeFillTint?: string;
+  /** Enable ambient animation on globe fill / ocean (default: true) */
+  globeFillAnimation?: boolean;
   /** Country data for data-driven visualization */
   countryData?: CountryDataMap;
   /** Accent color for data highlights */
