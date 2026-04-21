@@ -5,7 +5,7 @@
  * Includes automatic fallback when WebGL is unavailable.
  */
 
-import { useRef, useEffect, useState, useMemo, CSSProperties } from 'react';
+import { useRef, useEffect, useState, useMemo, forwardRef, useImperativeHandle, CSSProperties } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -41,6 +41,17 @@ import {
 import { checkWebGLSupport } from '../core/webgl';
 import { GlobeFallback } from './GlobeFallback';
 
+/** Easing for flyTo animation */
+function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+/** Imperative handle exposed via ref */
+export interface GlobeHandle {
+  /** Smoothly rotate the globe to bring a country into view */
+  flyTo: (countryName: string, duration?: number) => void;
+}
+
 export interface GlobeProps extends GlobeConfig {
   className?: string;
   style?: CSSProperties;
@@ -60,7 +71,7 @@ export interface GlobeProps extends GlobeConfig {
   debug?: boolean;
 }
 
-export function Globe({
+export const Globe = forwardRef<GlobeHandle, GlobeProps>(function Globe({
   className,
   style,
   modelUrl,
@@ -71,7 +82,7 @@ export function Globe({
   onCountryClick,
   debug = false,
   ...config
-}: GlobeProps) {
+}: GlobeProps, ref) {
   // Debug logging helper - only logs when debug prop is true
   const debugLog = (...args: unknown[]) => { if (debug) console.log('[Globe]', ...args); };
   const debugWarn = (...args: unknown[]) => { if (debug) console.warn('[Globe]', ...args); };
@@ -96,6 +107,59 @@ export function Globe({
     cityHighlights: Map<string, CityHighlightState>;
     intro: IntroState | null;
   } | null>(null);
+
+  /** State for active flyTo animation */
+  const flyToRef = useRef<{
+    startQuat: THREE.Quaternion;
+    targetQuat: THREE.Quaternion;
+    startTime: number;
+    duration: number;
+  } | null>(null);
+
+  useImperativeHandle(ref, () => ({
+    flyTo: (countryName: string, duration = 1.5) => {
+      if (!sceneRef.current?.model || !sceneRef.current?.index) return;
+      const { model, index, intro } = sceneRef.current;
+      // Don't interrupt intro animation
+      if (intro?.active) return;
+
+      // Find the country mesh using same name-normalization as highlight system
+      const normalized = countryName.toLowerCase().replace(/\s+/g, '_');
+      let targetMesh: THREE.Mesh | null = null;
+
+      for (const mesh of index.allCountryMeshes) {
+        const meshName = mesh.name.toLowerCase();
+        let baseName = '';
+        if (meshName.startsWith('country_')) baseName = meshName.slice('country_'.length);
+        else if (meshName.startsWith('cell_')) baseName = meshName.slice('cell_'.length);
+        if (!baseName) continue;
+        const parts = baseName.split('_');
+        const lastPart = parts[parts.length - 1];
+        const countryKey = /^\d+$/.test(lastPart) ? parts.slice(0, -1).join('_') : baseName;
+        if (countryKey === normalized || countryKey === normalized.replace(/_/g, '')) {
+          targetMesh = mesh;
+          break;
+        }
+      }
+      if (!targetMesh) return;
+
+      // Get mesh center in model-local space (direction on globe surface, unaffected by current rotation)
+      const worldPos = new THREE.Vector3();
+      targetMesh.getWorldPosition(worldPos);
+      model.worldToLocal(worldPos);
+      const dir = worldPos.normalize();
+
+      // Target quaternion: rotate globe so the country direction faces the camera (+Z)
+      const targetQuat = new THREE.Quaternion().setFromUnitVectors(dir, new THREE.Vector3(0, 0, 1));
+
+      flyToRef.current = {
+        startQuat: model.quaternion.clone(),
+        targetQuat,
+        startTime: sceneRef.current.time,
+        duration,
+      };
+    },
+  }));
 
   // Memoize colors to prevent unnecessary effect triggers
   const colors = useMemo(() => getSurfaceColors(config), [
@@ -414,8 +478,16 @@ export function Globe({
           applyIntroAnimation(sceneRef.current.model, t, sceneRef.current.intro);
         }
 
-        // Only auto-rotate if controls are not enabled (user controls rotation)
-        if (!enableControls) {
+        // FlyTo animation — SLERP globe orientation toward target country
+        if (flyToRef.current) {
+          const { startQuat, targetQuat, startTime, duration } = flyToRef.current;
+          const progress = Math.min((t - startTime) / duration, 1.0);
+          sceneRef.current.model.quaternion.slerpQuaternions(startQuat, targetQuat, easeInOutCubic(progress));
+          if (progress >= 1.0) flyToRef.current = null;
+        }
+
+        // Only auto-rotate if controls are not enabled and no flyTo in progress
+        if (!enableControls && !flyToRef.current) {
           animateGlobeRotation(sceneRef.current.model, t, rotationSpeedRef.current, bassRef.current, energyRef.current);
         }
         // Ambient wave always runs — provides base glow on non-highlighted countries
@@ -1066,5 +1138,7 @@ export function Globe({
     </div>
   );
 }
+
+});
 
 export default Globe;

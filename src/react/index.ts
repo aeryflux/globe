@@ -2,7 +2,7 @@
  * @aeryflux/globe/react - React components for web
  */
 
-export { Globe, type GlobeProps } from './Globe';
+export { Globe, type GlobeProps, type GlobeHandle } from './Globe';
 export { GlobeFallback, type GlobeFallbackProps } from './GlobeFallback';
 export { GlobeDevTools, type GlobeDevToolsProps } from './GlobeDevTools';
 export { useWebGLSupport } from './useWebGLSupport';
