@@ -172,9 +172,11 @@ export const Globe = forwardRef<GlobeHandle, GlobeProps>(function Globe({
       model.worldToLocal(geoCenter);                   // world → model-local
       const dir = geoCenter.normalize();
 
-      // Y-axis only: rotate globe horizontally so the country faces the camera (+Z)
-      // Project dir onto XZ plane to get the longitude angle, ignore latitude
-      const rawTargetY = -Math.atan2(dir.x, dir.z);
+      // Y-axis only: rotate globe horizontally so the country faces the camera.
+      // OrbitControls may have moved the camera to an arbitrary azimuth θ,
+      // so we offset the target by that angle instead of always targeting +Z.
+      const cameraAzimuth = sceneRef.current.controls?.getAzimuthalAngle() ?? 0;
+      const rawTargetY = -Math.atan2(dir.x, dir.z) + cameraAzimuth;
 
       if (sceneRef.current.intro?.active) {
         // Queue for when intro ends — targetRotY is already computed
@@ -392,9 +394,10 @@ export const Globe = forwardRef<GlobeHandle, GlobeProps>(function Globe({
       controls.minPolarAngle = Math.PI * 0.2;
       controls.maxPolarAngle = Math.PI * 0.8;
 
-      // Cursor feedback
+      // Cursor feedback + cancel flyTo on user drag
       controls.addEventListener('start', () => {
         renderer.domElement.style.cursor = 'grabbing';
+        flyToRef.current = null; // user takes control — cancel active flyTo
       });
       controls.addEventListener('end', () => {
         renderer.domElement.style.cursor = 'grab';
