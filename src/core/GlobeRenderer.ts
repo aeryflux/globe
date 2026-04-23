@@ -863,7 +863,7 @@ export function animateDataHighlights(
 
     // Radial displacement — scales with extrusion value (no hard cap, caller controls magnitude)
     const extrusionValue = data.extrusion ?? data.intensity;
-    const animatedDisplacement = extrusionValue * 0.1 * entryEase * (0.5 + breathingPulse * 0.5);
+    const animatedDisplacement = extrusionValue * 0.05 * entryEase * (0.5 + breathingPulse * 0.5);
 
     // Apply position: stay close to original, no scale change
     data.mesh.position.copy(originalState.position)
