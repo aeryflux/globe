@@ -861,9 +861,11 @@ export function animateDataHighlights(
     const breathe2 = Math.sin(time * breathingSpeed * 0.7 + phaseOffset * 1.3) * 0.4;
     const breathingPulse = 0.5 + 0.5 * (breathe1 + breathe2) / 1.4; // range ~0.15 to ~0.85
 
-    // Minimal radial displacement — just enough to feel alive, no lateral drift
+    // Radial displacement — fixed after entry, no breathing oscillation.
+    // Breathing only modulates emissive below; keeping position stable prevents
+    // the country from receding back toward the sphere surface and exposing gaps.
     const extrusionValue = data.extrusion ?? data.intensity;
-    const animatedDisplacement = Math.min(extrusionValue * 0.03, 0.025) * entryEase * (0.5 + breathingPulse * 0.5);
+    const animatedDisplacement = extrusionValue * 0.03 * entryEase;
 
     // Apply position: stay close to original, no scale change
     data.mesh.position.copy(originalState.position)
