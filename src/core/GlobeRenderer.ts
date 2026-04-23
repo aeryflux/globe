@@ -865,7 +865,7 @@ export function animateDataHighlights(
     // Breathing only modulates emissive below; keeping position stable prevents
     // the country from receding back toward the sphere surface and exposing gaps.
     const extrusionValue = data.extrusion ?? data.intensity;
-    const animatedDisplacement = extrusionValue * 0.05 * entryEase;
+    const animatedDisplacement = extrusionValue * 0.03 * entryEase;
 
     // Apply position: stay close to original, no scale change
     data.mesh.position.copy(originalState.position)
