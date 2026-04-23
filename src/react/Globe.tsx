@@ -553,22 +553,20 @@ export const Globe = forwardRef<GlobeHandle, GlobeProps>(function Globe({
         if (!enableControls && !flyToRef.current) {
           animateGlobeRotation(sceneRef.current.model, t, rotationSpeedRef.current, bassRef.current, energyRef.current);
         }
-        // Ambient wave always runs — provides base glow on non-highlighted countries
-        // When highlights exist, highlighted countries are overridden by animateDataHighlights
-        animateAmbientWave(
-          sceneRef.current.index, t,
-          ambientColorRef.current,
-          ambientIntensityRef.current,
-          bassRef.current,
-          energyRef.current,
-          ambientExtrusionRef.current
-        );
-        if (sceneRef.current.highlights.size > 0) {
+        // Ambient wave runs only when no data highlights are active.
+        // When countryData is set (weather heatmap, wiki, news), it would corrupt
+        // temperature-based colors and fight the data-driven emissive values.
+        if (sceneRef.current.highlights.size === 0) {
+          animateAmbientWave(
+            sceneRef.current.index, t,
+            ambientColorRef.current,
+            ambientIntensityRef.current,
+            bassRef.current,
+            energyRef.current,
+            ambientExtrusionRef.current
+          );
+        } else {
           animateBorderPulse(sceneRef.current.index, t, glowIntensityRef.current);
-        }
-
-        // Animate data highlights if any
-        if (sceneRef.current.highlights.size > 0) {
           animateDataHighlights(sceneRef.current.index, sceneRef.current.highlights, t, glowIntensityRef.current);
         }
         // Animate city highlights if any

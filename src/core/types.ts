@@ -58,7 +58,7 @@ export const SURFACES: Record<SurfaceId, SurfaceColors> = {
     accent: '#00ff88',
     background: '#050508',
     countryColor: '#e0e0e0',
-    globeFillColor: '#040d1a',
+    globeFillColor: '#071e3d',
   },
   green: {
     accent: '#00ff88',
