@@ -63,7 +63,7 @@
     }
   },
   "overrides": {
-    "vite": "^7.3.2"
+    "vite": "^7.3.5"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",
